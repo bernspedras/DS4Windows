@@ -135,18 +135,22 @@ namespace DS4WinWPF
             }
             catch { /* don't care about errors */ }
 
+            // Retrieve info about installed ViGEmBus device if found
+            DS4Windows.Global.RefreshViGEmBusInfo();
+
             // Create the Event handle
             threadComEvent = new EventWaitHandle(false, EventResetMode.ManualReset, SingleAppComEventName);
             CreateTempWorkerThread();
 
-            CreateControlService();
+            CreateControlService(parser);
             RenderOptions.ProcessRenderMode = RenderMode.SoftwareOnly;
 
             DS4Windows.Global.FindConfigLocation();
             bool firstRun = DS4Windows.Global.firstRun;
             if (firstRun)
             {
-                DS4Forms.SaveWhere savewh = new DS4Forms.SaveWhere(false);
+                DS4Forms.SaveWhere savewh =
+                    new DS4Forms.SaveWhere(DS4Windows.Global.multisavespots);
                 savewh.ShowDialog();
             }
 
@@ -169,7 +173,6 @@ namespace DS4WinWPF
             logger.Info($"OS Product Name: {DS4Windows.Util.GetOSProductName()}");
             logger.Info($"OS Release ID: {DS4Windows.Util.GetOSReleaseId()}");
             logger.Info($"System Architecture: {(Environment.Is64BitOperatingSystem ? "x64" : "x86")}");
-            //logger.Info("DS4Windows version 2.0");
             logger.Info("Logger created");
 
             bool readAppConfig = DS4Windows.Global.Load();
@@ -178,22 +181,17 @@ namespace DS4WinWPF
                 logger.Info($@"Profiles.xml not read at location ${DS4Windows.Global.appdatapath}\Profiles.xml. Using default app settings");
             }
 
-            //DS4Windows.Global.ProfilePath[0] = "mixed";
-            //DS4Windows.Global.LoadProfile(0, false, rootHub, false, false);
             if (firstRun)
             {
                 logger.Info("No config found. Creating default config");
-                //Directory.CreateDirectory(DS4Windows.Global.appdatapath);
                 AttemptSave();
 
-                //Directory.CreateDirectory(DS4Windows.Global.appdatapath + @"\Profiles\");
-                //Directory.CreateDirectory(DS4Windows.Global.appdatapath + @"\Macros\");
                 DS4Windows.Global.SaveAsNewProfile(0, "Default");
-                DS4Windows.Global.ProfilePath[0] = DS4Windows.Global.OlderProfilePath[0] = "Default";
-                /*DS4Windows.Global.ProfilePath[1] = DS4Windows.Global.OlderProfilePath[1] = "Default";
-                DS4Windows.Global.ProfilePath[2] = DS4Windows.Global.OlderProfilePath[2] = "Default";
-                DS4Windows.Global.ProfilePath[3] = DS4Windows.Global.OlderProfilePath[3] = "Default";
-                */
+                for (int i = 0; i < DS4Windows.ControlService.MAX_DS4_CONTROLLER_COUNT; i++)
+                {
+                    DS4Windows.Global.ProfilePath[i] = DS4Windows.Global.OlderProfilePath[i] = "Default";
+                }
+
                 logger.Info("Default config created");
             }
 
@@ -220,7 +218,12 @@ namespace DS4WinWPF
 
             window.CheckMinStatus();
             rootHub.LogDebug($"Running as {(DS4Windows.Global.IsAdministrator() ? "Admin" : "User")}");
-            rootHub.LaunchHidGuardHelper();
+
+            if (DS4Windows.Global.hidHideInstalled)
+            {
+                rootHub.CheckHidHidePresence();
+            }
+
             rootHub.LoadPermanentSlotsConfig();
             window.LateChecks(parser);
         }
@@ -261,8 +264,8 @@ namespace DS4WinWPF
 
         private void App_DispatcherUnhandledException(object sender, System.Windows.Threading.DispatcherUnhandledExceptionEventArgs e)
         {
-            //Console.WriteLine("App Crashed");
-            //Console.WriteLine(e.Exception.StackTrace);
+            //Debug.WriteLine("App Crashed");
+            //Debug.WriteLine(e.Exception.StackTrace);
             Logger logger = logHolder.Logger;
             logger.Error($"Thread Crashed with message {e.Exception.Message}");
             logger.Error(e.Exception.ToString());
@@ -336,6 +339,10 @@ namespace DS4WinWPF
             }
             else if (parser.Driverinstall)
             {
+                // Retrieve info about installed ViGEmBus device if found.
+                // Might not be needed here
+                DS4Windows.Global.RefreshViGEmBusInfo();
+
                 CreateBaseThread();
                 DS4Forms.WelcomeDialog dialog = new DS4Forms.WelcomeDialog(true);
                 dialog.ShowDialog();
@@ -435,15 +442,17 @@ namespace DS4WinWPF
             }
         }
 
-        private void CreateControlService()
+        private void CreateControlService(ArgumentParser parser)
         {
             controlThread = new Thread(() => {
+
                 if (!DS4Windows.Global.IsWin8OrGreater())
                 {
                     ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
                 }
 
-                rootHub = new DS4Windows.ControlService();
+                rootHub = new DS4Windows.ControlService(parser);
+
                 DS4Windows.Program.rootHub = rootHub;
                 requestClient = new HttpClient();
                 collectTimer = new Timer(GarbageTask, null, 30000, 30000);
@@ -694,7 +703,7 @@ namespace DS4WinWPF
                     {
                         if (rootHub.running)
                         {
-                            rootHub.Stop();
+                            rootHub.Stop(immediateUnplug: true);
                             rootHub.ShutDown();
                         }
                     }).Wait();

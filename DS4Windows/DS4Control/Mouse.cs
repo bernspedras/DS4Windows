@@ -1,4 +1,5 @@
 ﻿using System;
+//using System.Diagnostics;
 
 namespace DS4Windows
 {
@@ -492,8 +493,10 @@ namespace DS4Windows
             if (msinfo.maxOutputEnabled)
             {
                 double maxOutRatio = msinfo.maxOutput / 100.0;
-                double maxOutXRatio = normX * maxOutRatio;
-                double maxOutYRatio = normY * maxOutRatio;
+                // Expand output a bit. Likely not going to get a straight line with Gyro
+                double maxOutXRatio = Math.Min(normX / 0.99, 1.0) * maxOutRatio;
+                double maxOutYRatio = Math.Min(normY / 0.99, 1.0) * maxOutRatio;
+
                 xratio = Math.Min(Math.Max(xratio, 0.0), maxOutXRatio);
                 yratio = Math.Min(Math.Max(yratio, 0.0), maxOutYRatio);
             }
@@ -526,8 +529,19 @@ namespace DS4Windows
 
             byte axisXOut = (byte)(xNorm * maxDirX + 128.0);
             byte axisYOut = (byte)(yNorm * maxDirY + 128.0);
-            Mapping.gyroStickX[deviceNum] = axisXOut;
-            Mapping.gyroStickY[deviceNum] = axisYOut;
+
+            bool outputX = msinfo.OutputHorizontal();
+            bool outputY = msinfo.OutputVertical();
+
+            if (outputX)
+            {
+                Mapping.gyroStickX[deviceNum] = axisXOut;
+            }
+
+            if (outputY)
+            {
+                Mapping.gyroStickY[deviceNum] = axisYOut;
+            }
         }
 
         private void SixDirectionalSwipe(SixAxisEventArgs arg, GyroDirectionalSwipeInfo swipeInfo)

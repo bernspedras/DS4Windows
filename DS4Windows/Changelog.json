@@ -1,9 +1,381 @@
 {
-  "latest_version": "3.0.1",
-  "latest_version_number_info": {"majorPart": 3, "minorPart": 0, "buildPart": 1},
-  "updated_at": "2021-04-02T17:46:02+0000",
+  "latest_version": "3.0.18",
+  "latest_version_number_info": {"majorPart": 3, "minorPart": 0, "buildPart": 18},
+  "updated_at": "2021-08-17T18:46:29+0000",
   "changelog": {
     "versions": [
+    {
+      "version_str": "3.0.18",
+      "version_number_info": {"majorPart": 3, "minorPart": 0, "buildPart": 18},
+      "base_header": "Version 3.0.18",
+      "release_date": "2021-08-17T18:46:29+0000",
+      "locales": [
+        {
+          "code": "en",
+          "header": "Version 3.0.18",
+          "log_text": ["* Added output Stick and Axis options for Gyro Mouse Joystick",
+            "* Use TabControl to contain gyro output panels. Simplifies XAML",
+            "* Re-enabled DS4 emulation support"],
+          "editor": "ryochan7",
+          "editors_note": ["Can't have nice things like a functioning society"],
+          "updated_at": "2021-08-17T18:46:29+0000"
+        }
+      ]
+    },
+    {
+      "version_str": "3.0.17",
+      "version_number_info": {"majorPart": 3, "minorPart": 0, "buildPart": 17},
+      "base_header": "Version 3.0.17",
+      "release_date": "2021-08-16T04:18:45+0000",
+      "locales": [
+        {
+          "code": "en",
+          "header": "Version 3.0.17",
+          "log_text": ["* Added fake DS4 FrameCounter field for DualSense, Switch Pro and JoyCon devices",
+            "* Increased default Idle Disconnect time to 15 min",
+            "* Disabled DS4 controller emulation support. Can't have nice things",
+            "* Only perform output slot lookup in virtual device plugin routine when emulating a controller",
+            "* Check for device removal status before adding device to main view list. Fixes initial Switch Pro disconnect on hotplug when controller battery is dead"],
+          "editor": "ryochan7",
+          "editors_note": ["Tired of this crap"],
+          "updated_at": "2021-08-16T04:18:45+0000"
+        }
+      ]
+    },
+    {
+      "version_str": "3.0.16",
+      "version_number_info": {"majorPart": 3, "minorPart": 0, "buildPart": 16},
+      "base_header": "Version 3.0.16",
+      "release_date": "2021-08-09T02:07:23+0000",
+      "locales": [
+        {
+          "code": "en",
+          "header": "Version 3.0.16",
+          "log_text": ["* Changed mapper to copy timestamp data from original input state object. Used for DS4 Gyro Passthru"],
+          "editor": "ryochan7",
+          "editors_note": ["Tired of everything"],
+          "updated_at": "2021-08-09T02:07:23+0000"
+        }
+      ]
+    },
+    {
+      "version_str": "3.0.15",
+      "version_number_info": {"majorPart": 3, "minorPart": 0, "buildPart": 15},
+      "base_header": "Version 3.0.15",
+      "release_date": "2021-08-07T17:34:17+0000",
+      "locales": [
+        {
+          "code": "en",
+          "header": "Version 3.0.15",
+          "log_text": ["* Changed ControllerListViewModel locking strategy for non-Sony DS4s that might fail the initial handshake",
+            "* Removed OnlyInputData0x01 hack for fake DS4 controllers (fake DS4 using Sony VID+PID combo)",
+            "* No longer provide support for knockoff fake DS4 controllers",
+            "* Changed Lightbar TabItem in Profile Editor to use embedded TabControl",
+            "* Added warning text for Lightbar Passthru mode stating the old feature is currently disabled",
+            "* Fixed combo box cutoff in Dark theme. Contribution by **Sajidur78**",
+            "* Updated Brazilian Portuguese translation pack. Contribution by **nelitow**"],
+          "editor": "ryochan7",
+          "editors_note": ["Tired of problems"],
+          "updated_at": "2021-08-07T17:34:17+0000"
+        }
+      ]
+    },
+    {
+      "version_str": "3.0.14",
+      "version_number_info": {"majorPart": 3, "minorPart": 0, "buildPart": 14},
+      "base_header": "Version 3.0.14",
+      "release_date": "2021-08-04T01:48:11+0000",
+      "locales": [
+        {
+          "code": "en",
+          "header": "Version 3.0.14",
+          "log_text": ["* Updated FakerInputWrapper libraries for F13 - F24 key support",
+            "* Added F13 to F24 keys for FakerInput mapping",
+            "* Decreased button wheel delta. Increased button wheel sensitivity. Now uses 150 ms for time delta",
+            "* Updated FakerInputWrapper libraries. Fixes array bounds check for KeyboardReport",
+            "* Fixes for Stick Outer Btn bindings",
+            "* Added ManagementException catch for initial connection. Apparently it can be thrown in that call.",
+            "* Expanded max output limits for LS and RS",
+            "* Re-design dark theme and use theme colors in AutoProfiles. Contribution by **Sajidur78**",
+            "* Changed DualSense trigger Full Click resistance depending on profile settings",
+            "* Changes to better handle connection failure for Switch Pro and JoyCon devices"],
+          "editor": "ryochan7",
+          "editors_note": ["Need update"],
+          "updated_at": "2021-08-04T01:48:11+0000"
+        }
+      ]
+    },
+    {
+      "version_str": "3.0.13",
+      "version_number_info": {"majorPart": 3, "minorPart": 0, "buildPart": 13},
+      "base_header": "Version 3.0.13",
+      "release_date": "2021-07-07T20:16:18+0000",
+      "locales": [
+        {
+          "code": "en",
+          "header": "Version 3.0.13",
+          "log_text": ["* Another fix for EnhancedKey usage for FakerInput mapping"],
+          "editor": "ryochan7",
+          "editors_note": ["Fixes"],
+          "updated_at": "2021-07-07T20:16:18+0000"
+        }
+      ]
+    },
+    {
+      "version_str": "3.0.12",
+      "version_number_info": {"majorPart": 3, "minorPart": 0, "buildPart": 12},
+      "base_header": "Version 3.0.12",
+      "release_date": "2021-07-06T21:04:03+0000",
+      "locales": [
+        {
+          "code": "en",
+          "header": "Version 3.0.12",
+          "log_text": ["* Removed old Input Curve options",
+            "* Corrected coordinate system for Stick to Mouse Wheel",
+            "* Fixed saving of Max Output Force options",
+            "* Expand output for Gyro Mouse Joystick Max Output routine. Make sure maximum output can be achieved. Likely would not achieve a completely straight line when using Gyro.",
+            "* Expanded macrodone array. Fixes some macro bindings for later virtual buttons",
+            "* Added 'Hide DS4 Controller' option back in again",
+            "* Increased button mouse wheel delta. Decreases wheel sensitivity",
+            "* Unified late profile options checks",
+            "* Increased resistance range for DualSense trigger Full Click"],
+          "editor": "ryochan7",
+          "editors_note": ["Fixes"],
+          "updated_at": "2021-07-06T21:04:03+0000"
+        }
+      ]
+    },
+    {
+      "version_str": "3.0.11",
+      "version_number_info": {"majorPart": 3, "minorPart": 0, "buildPart": 11},
+      "base_header": "Version 3.0.11",
+      "release_date": "2021-06-29T23:15:01+0000",
+      "locales": [
+        {
+          "code": "en",
+          "header": "Version 3.0.11",
+          "log_text": ["* Group and move Virtual Controller options in Other tab. Contribution by **Kanuan**",
+            "* Fixed MODIFIER_ENHANCED value for FakerInput mapping",
+            "* Fixed Alt, Windows, and other modifier keys mapping for FakerInput",
+            "* Fixed Stick to Mouse Wheel routine for SendInput output",
+            "* Fixed tray menu profile selection for names with underscores",
+            "* Added many tooltip strings in Profile Editor",
+            "* Fixed RenameProfileWindow closing early due to early DialogResult assignment. Property calls Close on the Window",
+            "* Removed BitChute social link",
+            "* Fixed display of CheckEveryUnit combobox in Settings tab. Not sure when VS changed that portion of the XAML",
+            "* Removed obsolete 'Hide DS4 Controller' option again. Can't have options",
+            "* Added ScrollViewer to Other tab in Profile Editor. Enough controls in tab to justify it",
+            "* Added force option for LS and RS MaxOutput. Allow 100% forced circular max output for sticks",
+            "* Made Capture, SL, and SR buttons mappable",
+            "* Created Outer Button bindings for LS and RS. Allows extra distance action for the sticks like Walk or Sprint",
+            "* Display Touchpad X and Y in Controller Readings tab",
+            "* Increased HID report input buffer to 3 rather than 2. Not sure it will really matter",
+            "* Disabled broken DS4 feedback support **again**. Can't have semi-nice things. **Don't bring it up again until at least the next ViGEmBus driver update**",
+            "* Added change to not send Profile loaded message for secondary JoyCon in Joined mode"],
+          "editor": "ryochan7",
+          "editors_note": ["Done dealing with the average gamer (DSP)"],
+          "updated_at": "2021-06-29T23:15:01+0000"
+        }
+      ]
+    },
+    {
+      "version_str": "3.0.10",
+      "version_number_info": {"majorPart": 3, "minorPart": 0, "buildPart": 10},
+      "base_header": "Version 3.0.10",
+      "release_date": "2021-06-22T16:13:13+0000",
+      "locales": [
+        {
+          "code": "en",
+          "header": "Version 3.0.10",
+          "log_text": ["* Removed virtual device plug/unplug delay",
+            "* Removed Dispatcher and thread from OutputSlotManager",
+            "* Another fix to hopefully sort out Special Action items properly",
+            "* Allow profiles to be renamed from within app using Profiles tab",
+            "* 'Hold for X secs' special actions now support decimal values. Contribution by **mika-n**",
+            "* DeviceOptions has a new 'Verbose log messages' option. Contribution by **mika-n**",
+            "* Fixed coordinate system for Stick to Mouse Wheel calculations",
+            "* Reset mouse position for FakerInput on Sync method. Fixes some mouse related actions conflicting with FakerInput output handler",
+            "* Updated Touchpad scroll support to use new coordinate system",
+            "* Updated Strings.ru.resx. Contribution by **shikulja**"],
+          "editor": "ryochan7",
+          "editors_note": [""],
+          "updated_at": "2021-06-22T16:13:13+0000"
+        }
+      ]
+    },
+    {
+      "version_str": "3.0.9",
+      "version_number_info": {"majorPart": 3, "minorPart": 0, "buildPart": 9},
+      "base_header": "Version 3.0.9",
+      "release_date": "2021-06-12T04:47:57+0000",
+      "locales": [
+        {
+          "code": "en",
+          "header": "Version 3.0.9",
+          "log_text": ["* Fixed obtaining source index item for Special Action list",
+            "* Allow Touchpad Click as an output for Macros",
+            "* Delay log message for virtual device association",
+            "* Updated ViGEmPluginFailure message to make reference to PurgeOldXInput utility",
+            "* Added PurgeOldXInput utility to Tools folder. Might be useful for deleting invalid virtual Xbox 360 controllers",
+            "* Updated Japanese translation. Contribution by **toshixm**",
+            "* Updated Czech translation. Contribution by **MikeCZ23**"],
+          "editor": "ryochan7",
+          "editors_note": ["Burnout"],
+          "updated_at": "2021-06-12T04:47:57+0000"
+        }
+      ]
+    },
+    {
+      "version_str": "3.0.8",
+      "version_number_info": {"majorPart": 3, "minorPart": 0, "buildPart": 8},
+      "base_header": "Version 3.0.8",
+      "release_date": "2021-06-06T03:50:47+0000",
+      "locales": [
+        {
+          "code": "en",
+          "header": "Version 3.0.8",
+          "log_text": ["* Fixed Special Action sorting to sort by user defined Action name",
+            "* Removed support for HidGuardian completely. **HidHide is the only supported HID device blocking driver now**"],
+          "editor": "ryochan7",
+          "editors_note": ["Done"],
+          "updated_at": "2021-06-06T03:50:47+0000"
+        }
+      ]
+    },
+    {
+      "version_str": "3.0.7",
+      "version_number_info": {"majorPart": 3, "minorPart": 0, "buildPart": 7},
+      "base_header": "Version 3.0.7",
+      "release_date": "2021-06-04T20:24:42+0000",
+      "locales": [
+        {
+          "code": "en",
+          "header": "Version 3.0.7",
+          "log_text": ["* Added slot# log messages to a gamepad connect/disconnect handler and 'permanent' slot debug msg. Contribution by **mika-n**",
+            "* Small special action fix when action trigger is somehow flagged as None",
+            "* Added support for virtual KB+M driver FakerInput v. 0.1. Needed to play Valorant and other apps that block SendInput events.",
+            "* Sort Special Action list by action name",
+            "* Fixed event order issue that caused output slots to not get disconnected",
+            "* Reduced mouse remainder cutoff to the hundredths place",
+            "* Fixed OutSlotDevice check to make sure Permanent slots are detached on service stop"],
+          "editor": "ryochan7",
+          "editors_note": ["Driver hell"],
+          "updated_at": "2021-06-04T20:24:42+0000"
+        }
+      ]
+    },
+    {
+      "version_str": "3.0.6",
+      "version_number_info": {"majorPart": 3, "minorPart": 0, "buildPart": 6},
+      "base_header": "Version 3.0.6",
+      "release_date": "2021-05-27T05:02:47+0000",
+      "locales": [
+        {
+          "code": "en",
+          "header": "Version 3.0.6",
+          "log_text": ["* Re-compiled program and tools"],
+          "editor": "ryochan7",
+          "editors_note": ["Nothin"],
+          "updated_at": "2021-05-10T06:11:48+0000"
+        }
+      ]
+    },
+    {
+      "version_str": "3.0.5",
+      "version_number_info": {"majorPart": 3, "minorPart": 0, "buildPart": 5},
+      "base_header": "Version 3.0.5",
+      "release_date": "2021-05-10T06:11:48+0000",
+      "locales": [
+        {
+          "code": "en",
+          "header": "Version 3.0.5",
+          "log_text": ["* Fixed copying of app config file for fake named exe",
+            "* Now copy deps file for fake named exe",
+            "* Fixed initial Config folder selection dialog when multiple configs (Program Folder and AppData) are found. Make sure to display option to delete one of the configs",
+            "* Updated DotNetProjects.Extended.Wpf.Toolkit to version 4.6.97",
+            "* Updated MdXaml to version 1.10.0",
+            "* Updated NLog to version 4.7.9",
+            "* Check if DS4Windows program folder is actually AppData subfolder when locating program config. Treat case as Program Folder option",
+            "* Added All Files option for Launch Program special action File Dialog. Use Explorer to launch associated program for an arbitrary file"],
+          "editor": "ryochan7",
+          "editors_note": ["I'm on break"],
+          "updated_at": "2021-05-10T06:11:48+0000"
+        }
+      ]
+    },
+    {
+      "version_str": "3.0.4",
+      "version_number_info": {"majorPart": 3, "minorPart": 0, "buildPart": 4},
+      "base_header": "Version 3.0.4",
+      "release_date": "2021-05-05T14:47:29+0000",
+      "locales": [
+        {
+          "code": "en",
+          "header": "Version 3.0.4",
+          "log_text": ["* Support for DS3 gamepad as vendor defined device over DsHidMini driver. Contribution by **mika-n**",
+            "* Now issue immediate virtual device unplug upon Windows suspend",
+            "* Changed ViGEmBus lookup routine to perform a list based lookup for potential drivers. Attempt to discover newest version from version info",
+            "* Changed ViGEmClient library to attempt to connect to newest available version of ViGEmBus on a system rather than the first version found",
+            "* Set all controller slots to use the Default profile initially when making a new config",
+            "* Immediately issue unplug of all virtual controllers when pressing main Stop button",
+            "* Initial implementation of HidHide integration. Display key icon for HidHide hidden device. Insert DS4Windows.exe into whitelist at startup if necessary",
+            "* Changed method of obtaining current executable file location. Needed due to assembly changes in .NET 5 breaking support for custom exe filenames",
+            "* Added HidHide installer link to Welcome dialog window",
+            "* Added HidHide Configuration Client app link in Settings tab",
+            "* Hide HidNinja link in Settings tab if HidGuardian is not installed",
+            "* Show the text value of 'Max Saturation' lightbar setting. Contribution by **sabihoshi**",
+            "* Changed Launch Program special action to use UseShellExecute"],
+          "editor": "ryochan7",
+          "editors_note": ["Major ViGEmBus changes. HidHide support"],
+          "updated_at": "2021-05-05T14:47:29+0000"
+        }
+      ]
+    },
+    {
+      "version_str": "3.0.3",
+      "version_number_info": {"majorPart": 3, "minorPart": 0, "buildPart": 3},
+      "base_header": "Version 3.0.3",
+      "release_date": "2021-04-15T16:32:18+0000",
+      "locales": [
+        {
+          "code": "en",
+          "header": "Version 3.0.3",
+          "log_text": ["* Fixed Open Program Folder link in tray menu",
+            "* Lessen ViGEmBus restriction for now. Allow connecting to ViGEmBus 1.16.112.0. **PLEASE DON'T MAKE ME REGRET THIS**."],
+          "editor": "ryochan7",
+          "editors_note": ["Can't move forward"],
+          "updated_at": "2021-04-15T16:32:18+0000"
+        }
+      ]
+    },
+    {
+      "version_str": "3.0.2",
+      "version_number_info": {"majorPart": 3, "minorPart": 0, "buildPart": 2},
+      "base_header": "Version 3.0.2",
+      "release_date": "2021-04-12T00:45:20+0000",
+      "locales": [
+        {
+          "code": "en",
+          "header": "Version 3.0.2",
+          "log_text": ["* Use UseShellExecute for ProcessStartInfo in more places for .NET 5 changes",
+            "* DS4Windows updater message update. Contribution **RedDevilus**",
+            "* German translation update. Contribution by **jmg2k**",
+            "* Added Portuguese (Portugal) translation. Contribution by **joaopedrogome**",
+            "* Add cmd line command for 'Change led color'. Contribution by **bernspedras**",
+            "* Muted blues used in Dark theme. Contribution by **AnessZurba**",
+            "* Added some exception handling for XML in ProfileMigration",
+            "* Added output controller option to Preset Window for certain Presets. Change profile values based on output controller type.",
+            "* Added some precautions for possible empty devicePath string",
+            "* Changed GroupBox template for Dark theme",
+            "* Now enforcing ViGEmBus minimum supported version. Targetting ViGEmBus 1.17.333.0",
+            "* Fixed ProcessStartInfo for ViGEmBus installer launching with .NET 5",
+            "* Refresh internal data about ViGEmBus on service startup"],
+          "editor": "ryochan7",
+          "editors_note": ["Why"],
+          "updated_at": "2021-04-12T00:45:20+0000"
+        }
+      ]
+    },
     {
       "version_str": "3.0.1",
       "version_number_info": {"majorPart": 3, "minorPart": 0, "buildPart": 1},

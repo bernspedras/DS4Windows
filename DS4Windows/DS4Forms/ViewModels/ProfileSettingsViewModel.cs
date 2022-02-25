@@ -58,24 +58,6 @@ namespace DS4WinWPF.DS4Forms.ViewModels
         }
         public event EventHandler LightbarModeIndexChanged;
 
-        public Visibility DS4WinLightVisible
-        {
-            get
-            {
-                Visibility temp = Visibility.Visible;
-                switch(Global.LightbarSettingsInfo[device].Mode)
-                {
-                    case LightbarMode.DS4Win:
-                        temp = Visibility.Visible; break;
-                    case LightbarMode.Passthru:
-                        temp = Visibility.Collapsed; break;
-                }
-
-                return temp;
-            }
-        }
-        public event EventHandler DS4WinLightVisibleChanged;
-
         public System.Windows.Media.Brush LightbarBrush
         {
             get
@@ -580,15 +562,27 @@ namespace DS4WinWPF.DS4Forms.ViewModels
         public bool DInputOnly
         {
             get => Global.DinputOnly[device];
-            set => Global.DinputOnly[device] = value;
+            set
+            {
+                bool temp = Global.DinputOnly[device];
+                if (temp == value) return;
+
+                Global.DinputOnly[device] = value;
+                DInputOnlyChanged?.Invoke(this, EventArgs.Empty);
+            }
         }
+        public EventHandler DInputOnlyChanged;
 
         public bool IdleDisconnectExists
         {
             get => Global.IdleDisconnectTimeout[device] != 0;
             set
             {
-                Global.IdleDisconnectTimeout[device] = value ? 5 * 60 : 0;
+                // If enabling Idle Disconnect, set default time.
+                // Otherwise, set time to 0 to mean disabled
+                Global.IdleDisconnectTimeout[device] = value ?
+                    BackingStore.DEFAULT_ENABLE_IDLE_DISCONN_MINS * 60 : 0;
+
                 IdleDisconnectChanged?.Invoke(this, EventArgs.Empty);
                 IdleDisconnectExistsChanged?.Invoke(this, EventArgs.Empty);
             }
@@ -869,6 +863,12 @@ namespace DS4WinWPF.DS4Forms.ViewModels
             set => Global.LSModInfo[device].maxOutput = value * 100.0;
         }
 
+        public bool LSMaxOutputForce
+        {
+            get => Global.LSModInfo[device].maxOutputForce;
+            set => Global.LSModInfo[device].maxOutputForce = value;
+        }
+
         public double RSVerticalScale
         {
             get => Global.RSModInfo[device].verticalScale / 100.0;
@@ -879,6 +879,12 @@ namespace DS4WinWPF.DS4Forms.ViewModels
         {
             get => Global.RSModInfo[device].maxOutput / 100.0;
             set => Global.RSModInfo[device].maxOutput = value * 100.0;
+        }
+
+        public bool RSMaxOutputForce
+        {
+            get => Global.RSModInfo[device].maxOutputForce;
+            set => Global.RSModInfo[device].maxOutputForce = value;
         }
 
         public int LSDeadTypeIndex
@@ -1005,18 +1011,6 @@ namespace DS4WinWPF.DS4Forms.ViewModels
             }
         }
 
-        public int LSCurve
-        {
-            get => Global.LSCurve[device];
-            set => Global.LSCurve[device] = value;
-        }
-
-        public int RSCurve
-        {
-            get => Global.RSCurve[device];
-            set => Global.RSCurve[device] = value;
-        }
-
         public double LSRotation
         {
             get => Global.LSRotation[device] * 180.0 / Math.PI;
@@ -1098,6 +1092,30 @@ namespace DS4WinWPF.DS4Forms.ViewModels
         {
             get => Global.RSAntiSnapbackInfo[device].timeout;
             set => Global.RSAntiSnapbackInfo[device].timeout = value;
+        }
+
+        public bool LSOuterBindInvert
+        {
+            get => Global.LSModInfo[device].outerBindInvert;
+            set => Global.LSModInfo[device].outerBindInvert = value;
+        }
+
+        public bool RSOuterBindInvert
+        {
+            get => Global.RSModInfo[device].outerBindInvert;
+            set => Global.RSModInfo[device].outerBindInvert = value;
+        }
+
+        public double LSOuterBindDead
+        {
+            get => Global.LSModInfo[device].outerBindDeadZone / 100.0;
+            set => Global.LSModInfo[device].outerBindDeadZone = value * 100.0;
+        }
+
+        public double RSOuterBindDead
+        {
+            get => Global.RSModInfo[device].outerBindDeadZone / 100.0;
+            set => Global.RSModInfo[device].outerBindDeadZone = value * 100.0;
         }
 
         public int LSOutputIndex
@@ -1286,14 +1304,14 @@ namespace DS4WinWPF.DS4Forms.ViewModels
 
         public double L2MaxZone
         {
-            get => Global.L2ModInfo[device].maxZone / 100.0;
-            set => Global.L2ModInfo[device].maxZone = (int)(value * 100.0);
+            get => Global.L2ModInfo[device].MaxZone / 100.0;
+            set => Global.L2ModInfo[device].MaxZone = (int)(value * 100.0);
         }
 
         public double R2MaxZone
         {
-            get => Global.R2ModInfo[device].maxZone / 100.0;
-            set => Global.R2ModInfo[device].maxZone = (int)(value * 100.0);
+            get => Global.R2ModInfo[device].MaxZone / 100.0;
+            set => Global.R2ModInfo[device].MaxZone = (int)(value * 100.0);
         }
 
         public double L2AntiDeadZone
@@ -1310,14 +1328,14 @@ namespace DS4WinWPF.DS4Forms.ViewModels
 
         public double L2MaxOutput
         {
-            get => Global.L2ModInfo[device].maxOutput / 100.0;
-            set => Global.L2ModInfo[device].maxOutput = value * 100.0;
+            get => Global.L2ModInfo[device].MaxOutput / 100.0;
+            set => Global.L2ModInfo[device].MaxOutput = value * 100.0;
         }
 
         public double R2MaxOutput
         {
-            get => Global.R2ModInfo[device].maxOutput / 100.0;
-            set => Global.R2ModInfo[device].maxOutput = value * 100.0;
+            get => Global.R2ModInfo[device].MaxOutput / 100.0;
+            set => Global.R2ModInfo[device].MaxOutput = value * 100.0;
         }
 
         public double L2Sens
@@ -2130,6 +2148,26 @@ namespace DS4WinWPF.DS4Forms.ViewModels
             set => Global.GyroMouseStickInf[device].maxZone = value;
         }
 
+        public int GyroMouseStickOutputStick
+        {
+            get => (int)Global.GyroMouseStickInf[device].outputStick;
+            set
+            {
+                Global.GyroMouseStickInf[device].outputStick =
+                    (GyroMouseStickInfo.OutputStick)value;
+            }
+        }
+
+        public int GyroMouseStickOutputAxes
+        {
+            get => (int)Global.GyroMouseStickInf[device].outputStickDir;
+            set
+            {
+                Global.GyroMouseStickInf[device].outputStickDir =
+                    (GyroMouseStickInfo.OutputStickAxes)value;
+            }
+        }
+
         public double GyroMouseStickAntiDeadX
         {
             get => Global.GyroMouseStickInf[device].antiDeadX * 100.0;
@@ -2466,11 +2504,6 @@ namespace DS4WinWPF.DS4Forms.ViewModels
             {
                 OutputMouseSpeed = CalculateOutputMouseSpeed(ButtonMouseSensitivity);
                 MouseOffsetSpeed = RawButtonMouseOffset * OutputMouseSpeed;
-            };
-
-            LightbarModeIndexChanged += (sender, args) =>
-            {
-                DS4WinLightVisibleChanged?.Invoke(this, EventArgs.Empty);
             };
 
             GyroOutModeIndexChanged += CalcProfileFlags;
@@ -3484,6 +3517,7 @@ namespace DS4WinWPF.DS4Forms.ViewModels
                     if (!(outAct is X360Controls) || defaultControl != (X360Controls)outAct)
                     {
                         setting.UpdateSettings(false, outAct, null, DS4KeyType.None);
+                        Global.RefreshActionAlias(setting, false);
                     }
                 }
 

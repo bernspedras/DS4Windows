@@ -23,9 +23,12 @@ namespace DS4Windows
         public const int DEFAULT_ANTIDEADZONE = 20;
         public const int DEFAULT_MAXZONE = 100;
         public const double DEFAULT_MAXOUTPUT = 100.0;
+        public const bool DEFAULT_MAXOUTPUT_FORCE = false;
         public const int DEFAULT_FUZZ = 0;
         public const DeadZoneType DEFAULT_DEADZONE_TYPE = DeadZoneType.Radial;
         public const double DEFAULT_VERTICAL_SCALE = 100.0;
+        public const double DEFAULT_OUTER_BIND_DEAD = 75.0;
+        public const bool DEFAULT_OUTER_BIND_INVERT = false;
 
         public class AxisDeadZoneInfo
         {
@@ -49,9 +52,12 @@ namespace DS4Windows
         public int antiDeadZone;
         public int maxZone = DEFAULT_MAXZONE;
         public double maxOutput = DEFAULT_MAXOUTPUT;
+        public bool maxOutputForce = DEFAULT_MAXOUTPUT_FORCE;
         public int fuzz = DEFAULT_FUZZ;
         public double verticalScale = DEFAULT_VERTICAL_SCALE;
         public DeadZoneType deadzoneType = DEFAULT_DEADZONE_TYPE;
+        public double outerBindDeadZone = DEFAULT_OUTER_BIND_DEAD;
+        public bool outerBindInvert = DEFAULT_OUTER_BIND_INVERT;
         public AxisDeadZoneInfo xAxisDeadInfo = new AxisDeadZoneInfo();
         public AxisDeadZoneInfo yAxisDeadInfo = new AxisDeadZoneInfo();
 
@@ -61,9 +67,13 @@ namespace DS4Windows
             antiDeadZone = 0;
             maxZone = DEFAULT_MAXZONE;
             maxOutput = DEFAULT_MAXOUTPUT;
+            maxOutputForce = DEFAULT_MAXOUTPUT_FORCE;
+
             fuzz = DEFAULT_FUZZ;
             verticalScale = DEFAULT_VERTICAL_SCALE;
             deadzoneType = DEFAULT_DEADZONE_TYPE;
+            outerBindDeadZone = DEFAULT_OUTER_BIND_DEAD;
+            outerBindInvert = DEFAULT_OUTER_BIND_INVERT;
             xAxisDeadInfo.Reset();
             yAxisDeadInfo.Reset();
         }
@@ -82,10 +92,63 @@ namespace DS4Windows
 
     public class TriggerDeadZoneZInfo
     {
-        public byte deadZone; // Trigger deadzone is expressed in axis units
+        // Trigger deadzone is expressed in axis units (bad old convention)
+        public byte deadZone;
+
+        public byte DeadZone
+        {
+            get => deadZone;
+            set
+            {
+                if (deadZone == value) return;
+                deadZone = value;
+                DeadZoneChanged?.Invoke(this, EventArgs.Empty);
+            }
+        }
+        public event EventHandler DeadZoneChanged;
+
         public int antiDeadZone;
         public int maxZone = 100;
+        public int MaxZone
+        {
+            get => maxZone;
+            set
+            {
+                if (maxZone == value) return;
+                maxZone = value;
+                MaxZoneChanged?.Invoke(this, EventArgs.Empty);
+            }
+        }
+        public event EventHandler MaxZoneChanged;
+
         public double maxOutput = 100.0;
+
+        public double MaxOutput
+        {
+            get => maxOutput;
+            set
+            {
+                if (maxOutput == value) return;
+                maxOutput = value;
+                MaxOutputChanged?.Invoke(this, EventArgs.Empty);
+            }
+        }
+        public event EventHandler MaxOutputChanged;
+
+        public void Reset()
+        {
+            deadZone = 0;
+            antiDeadZone = 0;
+            MaxZone = 100;
+            MaxOutput = 100.0;
+        }
+
+        public void ResetEvents()
+        {
+            MaxZoneChanged = null;
+            MaxOutputChanged = null;
+            DeadZoneChanged = null;
+        }
     }
 
     public class GyroMouseInfo
@@ -219,9 +282,26 @@ namespace DS4Windows
             WeightedAverage,
         }
 
+        public enum OutputStick : byte
+        {
+            None,
+            LeftStick,
+            RightStick,
+        }
+
+        public enum OutputStickAxes : byte
+        {
+            None,
+            XY,
+            X,
+            Y
+        }
+
         public const double DEFAULT_MINCUTOFF = 0.4;
         public const double DEFAULT_BETA = 0.7;
         public const string DEFAULT_SMOOTH_TECHNIQUE = "one-euro";
+        public const OutputStick DEFAULT_OUTPUT_STICK = OutputStick.RightStick;
+        public const OutputStickAxes DEFAULT_OUTPUT_STICK_AXES = OutputStickAxes.XY;
 
         public int deadZone;
         public int maxZone;
@@ -237,6 +317,8 @@ namespace DS4Windows
         public SmoothingMethod smoothingMethod;
         public double minCutoff = DEFAULT_MINCUTOFF;
         public double beta = DEFAULT_BETA;
+        public OutputStick outputStick = DEFAULT_OUTPUT_STICK;
+        public OutputStickAxes outputStickDir = DEFAULT_OUTPUT_STICK_AXES;
 
         public delegate void GyroMouseStickInfoEventHandler(GyroMouseStickInfo sender,
             EventArgs args);
@@ -272,6 +354,8 @@ namespace DS4Windows
             antiDeadX = 0.4; antiDeadY = 0.4;
             inverted = 0; vertScale = 100;
             maxOutputEnabled = false; maxOutput = 100.0;
+            outputStick = DEFAULT_OUTPUT_STICK;
+            outputStickDir = DEFAULT_OUTPUT_STICK_AXES;
 
             minCutoff = DEFAULT_MINCUTOFF;
             beta = DEFAULT_BETA;
@@ -344,6 +428,18 @@ namespace DS4Windows
         {
             BetaChanged = null;
             MinCutoffChanged = null;
+        }
+
+        public bool OutputHorizontal()
+        {
+            return outputStickDir == OutputStickAxes.XY ||
+                outputStickDir == OutputStickAxes.X;
+        }
+
+        public bool OutputVertical()
+        {
+            return outputStickDir == OutputStickAxes.XY ||
+                outputStickDir == OutputStickAxes.Y;
         }
     }
 
@@ -770,6 +866,13 @@ namespace DS4Windows
         }
         public event EventHandler TriggerEffectChanged;
 
+        public InputDevices.TriggerEffectSettings effectSettings =
+            new InputDevices.TriggerEffectSettings();
+        public ref InputDevices.TriggerEffectSettings TrigEffectSettings
+        {
+            get => ref effectSettings;
+        }
+
         public void ResetSettings()
         {
             //mode = TriggerMode.Normal;
@@ -778,6 +881,12 @@ namespace DS4Windows
             triggerEffect = DEFAULT_TRIGGER_EFFECT;
             TwoStageModeChanged?.Invoke(this, EventArgs.Empty);
             TriggerEffectChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        public void ResetEvents()
+        {
+            TwoStageModeChanged = null;
+            TriggerEffectChanged = null;
         }
     }
 }

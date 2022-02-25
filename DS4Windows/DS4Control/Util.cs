@@ -12,6 +12,9 @@ namespace DS4Windows
     [SuppressUnmanagedCodeSecurity]
     class Util
     {
+        public static Guid sysGuid = Guid.Parse("{4d36e97d-e325-11ce-bfc1-08002be10318}");
+        public static Guid fakerInputGuid = Guid.Parse("{ab67b0fa-d0f5-4f60-81f4-346e18fd0805}");
+
         public enum PROCESS_INFORMATION_CLASS : int
         {
             ProcessBasicInformation = 0,
@@ -202,6 +205,7 @@ namespace DS4Windows
         {
             int result = -1;
             string tmpPath = Path.Combine(Path.GetTempPath(), "updatercopy.bat");
+            //string tmpPath = Path.GetTempFileName();
             // Create temporary bat script that will later be executed
             using (StreamWriter w = new StreamWriter(new FileStream(tmpPath,
                 FileMode.Create, FileAccess.Write)))
@@ -214,7 +218,7 @@ namespace DS4Windows
                 {
                     w.WriteLine($"@del /S \"{Global.exedirpath}\\Update Files\\DS4Windows\"");
                 }
-                w.WriteLine("@start /b \"\" cmd /c DEL \"%~f0\"&exit /b"); // Attempt to delete myself without opening a time paradox.
+
                 w.Close();
             }
 

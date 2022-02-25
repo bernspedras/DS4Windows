@@ -13,14 +13,16 @@ using System.Threading.Tasks;
 using System.Globalization;
 using System.Diagnostics;
 using Sensorit.Base;
+using DS4Windows.DS4Control;
 using System.Windows.Input;
+using System.Runtime.InteropServices;
 
 namespace DS4Windows
 {
     [Flags]
     public enum DS4KeyType : byte { None = 0, ScanCode = 1, Toggle = 2, Unbound = 4, Macro = 8, HoldMacro = 16, RepeatMacro = 32 }; // Increment by exponents of 2*, starting at 2^0
     public enum Ds3PadId : byte { None = 0xFF, One = 0x00, Two = 0x01, Three = 0x02, Four = 0x03, All = 0x04 };
-    public enum DS4Controls : byte { None, LXNeg, LXPos, LYNeg, LYPos, RXNeg, RXPos, RYNeg, RYPos, L1, L2, L3, R1, R2, R3, Square, Triangle, Circle, Cross, DpadUp, DpadRight, DpadDown, DpadLeft, PS, TouchLeft, TouchUpper, TouchMulti, TouchRight, Share, Options, Mute, GyroXPos, GyroXNeg, GyroZPos, GyroZNeg, SwipeLeft, SwipeRight, SwipeUp, SwipeDown, L2FullPull, R2FullPull, GyroSwipeLeft, GyroSwipeRight, GyroSwipeUp, GyroSwipeDown };
+    public enum DS4Controls : byte { None, LXNeg, LXPos, LYNeg, LYPos, RXNeg, RXPos, RYNeg, RYPos, L1, L2, L3, R1, R2, R3, Square, Triangle, Circle, Cross, DpadUp, DpadRight, DpadDown, DpadLeft, PS, TouchLeft, TouchUpper, TouchMulti, TouchRight, Share, Options, Mute, GyroXPos, GyroXNeg, GyroZPos, GyroZNeg, SwipeLeft, SwipeRight, SwipeUp, SwipeDown, L2FullPull, R2FullPull, GyroSwipeLeft, GyroSwipeRight, GyroSwipeUp, GyroSwipeDown, Capture, SideL, SideR, LSOuter, RSOuter };
     public enum X360Controls : byte { None, LXNeg, LXPos, LYNeg, LYPos, RXNeg, RXPos, RYNeg, RYPos, LB, LT, LS, RB, RT, RS, X, Y, B, A, DpadUp, DpadRight, DpadDown, DpadLeft, Guide, Back, Start, TouchpadClick, LeftMouse, RightMouse, MiddleMouse, FourthMouse, FifthMouse, WUP, WDOWN, MouseUp, MouseDown, MouseLeft, MouseRight, Unbound };
 
     public enum SASteeringWheelEmulationAxisType: byte { None = 0, LX, LY, RX, RY, L2R2, VJoy1X, VJoy1Y, VJoy1Z, VJoy2X, VJoy2Y, VJoy2Z };
@@ -61,19 +63,28 @@ namespace DS4Windows
 
     public class ControlActionData
     {
+        // Store base mapping value. Uses Windows virtual key values as the base
+        // https://docs.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
         public int actionKey;
+
+        // Alias to real value for current output KB+M event system.
+        // Allows skipping a translation call every frame
+        public uint actionAlias = 0;
         public X360Controls actionBtn;
         public int[] actionMacro = new int[1];
     }
 
     public class DS4ControlSettings
     {
+        public const int MAX_MACRO_VALUE = 286;
+
         public DS4Controls control;
         public string extras = null;
         public DS4KeyType keyType = DS4KeyType.None;
         public enum ActionType : byte { Default, Key, Button, Macro };
         public ActionType actionType = ActionType.Default;
         public ControlActionData action = new ControlActionData();
+
         public ActionType shiftActionType = ActionType.Default;
         public ControlActionData shiftAction = new ControlActionData();
         public int shiftTrigger = 0;
@@ -94,8 +105,13 @@ namespace DS4Windows
             keyType = DS4KeyType.None;
             actionType = ActionType.Default;
             action = new ControlActionData();
+            action.actionAlias = 0;
+            //actionAlias = 0;
+
             shiftActionType = ActionType.Default;
             shiftAction = new ControlActionData();
+            shiftAction.actionAlias = 0;
+            //shiftActionAlias = 0;
             shiftTrigger = 0;
             shiftExtras = null;
             shiftKeyType = DS4KeyType.None;
@@ -195,13 +211,20 @@ namespace DS4Windows
         public List<DS4ControlSettings> ControlButtons =
             new List<DS4ControlSettings>();
 
+        public List<DS4ControlSettings> ExtraDeviceButtons =
+            new List<DS4ControlSettings>();
+
+        private List<DS4ControlSettings> settingsList;
+
         public ControlSettingsGroup(List<DS4ControlSettings> settingsList)
         {
+            LS.Add(settingsList[(int)DS4Controls.LSOuter - 1]);
             for (int i = (int)DS4Controls.LXNeg; i <= (int)DS4Controls.LYPos; i++)
             {
                 LS.Add(settingsList[i-1]);
             }
 
+            LS.Add(settingsList[(int)DS4Controls.RSOuter - 1]);
             for (int i = (int)DS4Controls.RXNeg; i <= (int)DS4Controls.RYPos; i++)
             {
                 RS.Add(settingsList[i-1]);
@@ -227,6 +250,21 @@ namespace DS4Windows
             {
                 ControlButtons.Add(settingsList[i-1]);
             }
+
+            this.settingsList = settingsList;
+        }
+
+        public void EstablishExtraButtons(List<DS4Controls> buttonList)
+        {
+            foreach(DS4Controls control in buttonList)
+            {
+                ExtraDeviceButtons.Add(settingsList[(int)control - 1]);
+            }
+        }
+
+        public void ResetExtraButtons()
+        {
+            ExtraDeviceButtons.Clear();
         }
     }
 
@@ -399,9 +437,14 @@ namespace DS4Windows
         public const int TEST_PROFILE_ITEM_COUNT = MAX_DS4_CONTROLLER_COUNT + 1;
         public const int TEST_PROFILE_INDEX = TEST_PROFILE_ITEM_COUNT - 1;
         public const int OLD_XINPUT_CONTROLLER_COUNT = 4;
+        public const byte DS4_STICK_AXIS_MIDPOINT = 128;
+
+        public static CultureInfo configFileDecimalCulture = new CultureInfo("en-US"); // Loading and Saving decimal values in configuration files should always use en-US decimal format (ie. dot char as decimal separator char, not comma char)
+
         protected static BackingStore m_Config = new BackingStore();
         protected static Int32 m_IdleTimeout = 600000;
-        public static string exelocation = Path.ChangeExtension(Assembly.GetExecutingAssembly().Location, "exe");
+
+        public static string exelocation = Process.GetCurrentProcess().MainModule.FileName;
         public static string exedirpath = Directory.GetParent(exelocation).FullName;
         public static string exeFileName = Path.GetFileName(exelocation);
         public static FileVersionInfo fileVersion = FileVersionInfo.GetVersionInfo(exelocation);
@@ -440,6 +483,7 @@ namespace DS4Windows
         public static bool firstRun = false;
         public static bool multisavespots = false;
         public static string appDataPpath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\\DS4Windows";
+        public static string localAppDataPpath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DS4Windows");
         public static bool runHotPlug = false;
         public static string[] tempprofilename = new string[TEST_PROFILE_ITEM_COUNT] { string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty };
         public static bool[] useTempProfile = new bool[TEST_PROFILE_ITEM_COUNT] { false, false, false, false, false, false, false, false, false };
@@ -459,12 +503,26 @@ namespace DS4Windows
             DS4Windows.OutContType.None, DS4Windows.OutContType.None,
             DS4Windows.OutContType.None, DS4Windows.OutContType.None,
             DS4Windows.OutContType.None};
-        public static bool vigemInstalled = IsViGEmBusInstalled();
-        public static bool hidguardInstalled = IsHidGuardianInstalled();
-        public static string vigembusVersion = ViGEmBusVersion();
+
+        public const string BLANK_VIGEMBUS_VERSION = "0.0.0.0";
+        public const string MIN_SUPPORTED_VIGEMBUS_VERSION = "1.16.112.0";
+
+        //public static bool vigemInstalled = IsViGEmBusInstalled();
+        public static bool vigemInstalled = false;
+        //public static string vigembusVersion = ViGEmBusVersion();
+        public static string vigembusVersion = BLANK_VIGEMBUS_VERSION;
         public static Version vigemBusVersionInfo =
             new Version(!string.IsNullOrEmpty(vigembusVersion) ? vigembusVersion :
-                "0.0.0.0");
+                BLANK_VIGEMBUS_VERSION);
+        public static Version minSupportedViGEmBusVersionInfo = new Version(MIN_SUPPORTED_VIGEMBUS_VERSION);
+        public static bool hidHideInstalled = IsHidHideInstalled();
+        public static bool fakerInputInstalled = IsFakerInputInstalled();
+        public const string BLANK_FAKERINPUT_VERSION = "0.0.0.0";
+        public static string fakerInputVersion = FakerInputVersion();
+
+        public static VirtualKBMBase outputKBMHandler = null;
+        public static VirtualKBMMapping outputKBMMapping = null;
+
         public const int CONFIG_VERSION = 5;
         public const int APP_CONFIG_VERSION = 2;
         public const string ASSEMBLY_RESOURCE_PREFIX = "pack://application:,,,/DS4Windows;";
@@ -518,6 +576,11 @@ namespace DS4Windows
             X360Controls.None, // DS4Controls.GyroSwipeRight
             X360Controls.None, // DS4Controls.GyroSwipeUp
             X360Controls.None, // DS4Controls.GyroSwipeDown
+            X360Controls.None, // DS4Controls.Capture
+            X360Controls.None, // DS4Controls.SideL
+            X360Controls.None, // DS4Controls.SideR
+            X360Controls.None, // DS4Controls.LSOuter
+            X360Controls.None, // DS4Controls.RSOuter
         };
 
         // Create mapping array at runtime
@@ -664,6 +727,9 @@ namespace DS4Windows
             [DS4Controls.Share] = "Share",
             [DS4Controls.Options] = "Options",
             [DS4Controls.Mute] = "Mute",
+            [DS4Controls.Capture] = "Capture",
+            [DS4Controls.SideL] = "Side L",
+            [DS4Controls.SideR] = "Side R",
             [DS4Controls.TouchLeft] = "Left Touch",
             [DS4Controls.TouchUpper] = "Upper Touch",
             [DS4Controls.TouchMulti] = "Multitouch",
@@ -678,6 +744,8 @@ namespace DS4Windows
             [DS4Controls.SwipeDown] = "Swipe Down",
             [DS4Controls.L2FullPull] = "L2 Full Pull",
             [DS4Controls.R2FullPull] = "R2 Full Pull",
+            [DS4Controls.LSOuter] = "LS Outer",
+            [DS4Controls.RSOuter] = "RS Outer",
 
             [DS4Controls.GyroSwipeLeft] = "Gyro Swipe Left",
             [DS4Controls.GyroSwipeRight] = "Gyro Swipe Right",
@@ -700,6 +768,8 @@ namespace DS4Windows
             [DS4Controls.LYNeg] = 281, [DS4Controls.RXPos] = 282,
             [DS4Controls.RXNeg] = 283, [DS4Controls.RYPos] = 284,
             [DS4Controls.RYNeg] = 285,
+            [DS4Controls.TouchLeft] = 286, [DS4Controls.TouchRight] = 286,
+            [DS4Controls.TouchUpper] = 286, [DS4Controls.TouchMulti] = 286,
         };
 
         public static Dictionary<TrayIconChoice, string> iconChoiceResources = new Dictionary<TrayIconChoice, string>
@@ -795,6 +865,119 @@ namespace DS4Windows
             return result;
         }
 
+        private class ViGEmBusInfo
+        {
+            //public string path;
+            public string instanceId;
+            public string deviceName;
+            public string deviceVersionStr;
+            public Version deviceVersion;
+            public string manufacturer;
+            public string driverProviderName;
+        }
+
+        private static void FindViGEmDeviceInfo()
+        {
+            bool result = false;
+            Guid deviceGuid = Guid.Parse(VIGEMBUS_GUID);
+            NativeMethods.SP_DEVINFO_DATA deviceInfoData =
+                new NativeMethods.SP_DEVINFO_DATA();
+            deviceInfoData.cbSize =
+                System.Runtime.InteropServices.Marshal.SizeOf(deviceInfoData);
+
+            var dataBuffer = new byte[4096];
+            ulong propertyType = 0;
+            var requiredSize = 0;
+
+            // Properties to retrieve
+            NativeMethods.DEVPROPKEY[] lookupProperties = new NativeMethods.DEVPROPKEY[]
+            {
+                NativeMethods.DEVPKEY_Device_DriverVersion, NativeMethods.DEVPKEY_Device_InstanceId,
+                NativeMethods.DEVPKEY_Device_Manufacturer, NativeMethods.DEVPKEY_Device_Provider,
+                NativeMethods.DEVPKEY_Device_DeviceDesc,
+            };
+
+            List<ViGEmBusInfo> tempViGEmBusInfoList = new List<ViGEmBusInfo>();
+
+            IntPtr deviceInfoSet = NativeMethods.SetupDiGetClassDevs(ref deviceGuid, null, 0,
+                NativeMethods.DIGCF_DEVICEINTERFACE);
+            for (int i = 0; !result && NativeMethods.SetupDiEnumDeviceInfo(deviceInfoSet, i, ref deviceInfoData); i++)
+            {
+                ViGEmBusInfo tempBusInfo = new ViGEmBusInfo();
+
+                foreach (NativeMethods.DEVPROPKEY currentDevKey in lookupProperties)
+                {
+                    NativeMethods.DEVPROPKEY tempKey = currentDevKey;
+                    if (NativeMethods.SetupDiGetDeviceProperty(deviceInfoSet, ref deviceInfoData,
+                        ref tempKey, ref propertyType,
+                        dataBuffer, dataBuffer.Length, ref requiredSize, 0))
+                    {
+                        string temp = dataBuffer.ToUTF16String();
+                        if (currentDevKey.fmtid == NativeMethods.DEVPKEY_Device_DriverVersion.fmtid &&
+                            currentDevKey.pid == NativeMethods.DEVPKEY_Device_DriverVersion.pid)
+                        {
+                            try
+                            {
+                                tempBusInfo.deviceVersion = new Version(temp);
+                                tempBusInfo.deviceVersionStr = temp;
+                            }
+                            catch (ArgumentException)
+                            {
+                                // Default to unknown version
+                                tempBusInfo.deviceVersionStr = BLANK_VIGEMBUS_VERSION;
+                                tempBusInfo.deviceVersion = new Version(tempBusInfo.deviceVersionStr);
+                            }
+                        }
+                        else if (currentDevKey.fmtid == NativeMethods.DEVPKEY_Device_InstanceId.fmtid &&
+                            currentDevKey.pid == NativeMethods.DEVPKEY_Device_InstanceId.pid)
+                        {
+                            tempBusInfo.instanceId = temp;
+                        }
+                        else if (currentDevKey.fmtid == NativeMethods.DEVPKEY_Device_Manufacturer.fmtid &&
+                            currentDevKey.pid == NativeMethods.DEVPKEY_Device_Manufacturer.pid)
+                        {
+                            tempBusInfo.manufacturer = temp;
+                        }
+                        else if (currentDevKey.fmtid == NativeMethods.DEVPKEY_Device_Provider.fmtid &&
+                            currentDevKey.pid == NativeMethods.DEVPKEY_Device_Provider.pid)
+                        {
+                            tempBusInfo.driverProviderName = temp;
+                        }
+                        else if (currentDevKey.fmtid == NativeMethods.DEVPKEY_Device_DeviceDesc.fmtid &&
+                            currentDevKey.pid == NativeMethods.DEVPKEY_Device_DeviceDesc.pid)
+                        {
+                            tempBusInfo.deviceName = temp;
+                        }
+                    }
+                }
+
+                tempViGEmBusInfoList.Add(tempBusInfo);
+            }
+
+            if (deviceInfoSet.ToInt64() != NativeMethods.INVALID_HANDLE_VALUE)
+            {
+                NativeMethods.SetupDiDestroyDeviceInfoList(deviceInfoSet);
+            }
+
+            // Iterate over list and find most recent version number
+            //IEnumerable<ViGEmBusInfo> tempResults = tempViGEmBusInfoList.Where(item => minSupportedViGEmBusVersionInfo.CompareTo(item.deviceVersion) <= 0);
+            Version latestKnown = new Version(BLANK_VIGEMBUS_VERSION);
+            string deviceInstanceId = string.Empty;
+            foreach (ViGEmBusInfo item in tempViGEmBusInfoList)
+            {
+                if (latestKnown.CompareTo(item.deviceVersion) <= 0)
+                {
+                    latestKnown = item.deviceVersion;
+                    deviceInstanceId = item.instanceId;
+                }
+            }
+
+            // Get bus info for most recent version found and save info
+            ViGEmBusInfo latestBusInfo =
+                tempViGEmBusInfoList.SingleOrDefault(item => item.instanceId == deviceInstanceId);
+            PopulateFromViGEmBusInfo(latestBusInfo);
+        }
+
         private static bool CheckForSysDevice(string searchHardwareId)
         {
             bool result = false;
@@ -857,140 +1040,129 @@ namespace DS4Windows
             return result;
         }
 
-        private static string GetViGEmDriverProperty(NativeMethods.DEVPROPKEY prop)
-        {
-            string result = string.Empty;
-            Guid deviceGuid = Guid.Parse(VIGEMBUS_GUID);
-            NativeMethods.SP_DEVINFO_DATA deviceInfoData =
-                new NativeMethods.SP_DEVINFO_DATA();
-            deviceInfoData.cbSize =
-                System.Runtime.InteropServices.Marshal.SizeOf(deviceInfoData);
-
-            var dataBuffer = new byte[4096];
-            ulong propertyType = 0;
-            var requiredSize = 0;
-
-            IntPtr deviceInfoSet = NativeMethods.SetupDiGetClassDevs(ref deviceGuid, null, 0,
-                NativeMethods.DIGCF_DEVICEINTERFACE);
-            NativeMethods.SetupDiEnumDeviceInfo(deviceInfoSet, 0, ref deviceInfoData);
-            if (NativeMethods.SetupDiGetDeviceProperty(deviceInfoSet, ref deviceInfoData, ref prop, ref propertyType,
-                    dataBuffer, dataBuffer.Length, ref requiredSize, 0))
-            {
-                result = dataBuffer.ToUTF16String();
-            }
-
-            if (deviceInfoSet.ToInt64() != NativeMethods.INVALID_HANDLE_VALUE)
-            {
-                NativeMethods.SetupDiDestroyDeviceInfoList(deviceInfoSet);
-            }
-
-            return result;
-        }
-
-        public static bool CheckAffectedStatus(string deviceInstanceId,
-            HashSet<string> affectedDevs, HashSet<string> exemptedDevices, bool force=false)
+        public static bool CheckHidHideAffectedStatus(string deviceInstanceId,
+            HashSet<string> affectedDevs, HashSet<string> exemptedDevices, bool force = false)
         {
             bool result = false;
-            List<string> hardwareIdList = GrabDeviceHardwareIds(deviceInstanceId);
-            bool foundExempt = false;
-            foreach(string hardwareId in hardwareIdList)
-            {
-                foundExempt = foundExempt || exemptedDevices.Contains(hardwareId);
-            }
-
-            if (!foundExempt)
-            {
-                if (force)
-                {
-                    result = true;
-                }
-                else
-                {
-                    foreach (string hardwareId in hardwareIdList)
-                    {
-                        result = result || affectedDevs.Contains(hardwareId);
-                    }
-                }
-            }
-            else
-            {
-                result = false;
-            }
-
+            string tempDeviceInstanceId = deviceInstanceId.ToUpper();
+            result = affectedDevs.Contains(tempDeviceInstanceId);
             return result;
         }
 
-        private static List<string> GrabDeviceHardwareIds(string deviceInstanceId)
+        public static bool IsHidHideInstalled()
         {
-            bool success;
-            List<string> hardwareIds = new List<string>();
-            Guid hidGuid = HidDevices.HidClassGuid;
-            IntPtr deviceInfoSet = NativeMethods.SetupDiGetClassDevs(ref hidGuid, deviceInstanceId, 0, NativeMethods.DIGCF_PRESENT | NativeMethods.DIGCF_DEVICEINTERFACE);
-
-            if (deviceInfoSet.ToInt64() != NativeMethods.INVALID_HANDLE_VALUE)
-            {
-                NativeMethods.SP_DEVINFO_DATA deviceInfoData = new NativeMethods.SP_DEVINFO_DATA();
-                deviceInfoData.cbSize = System.Runtime.InteropServices.Marshal.SizeOf(deviceInfoData);
-                success = NativeMethods.SetupDiEnumDeviceInfo(deviceInfoSet, 0, ref deviceInfoData);
-
-                var requiredSize = 0;
-                ulong propertyType = 0;
-
-                NativeMethods.SetupDiGetDeviceProperty(deviceInfoSet, ref deviceInfoData,
-                                                        ref NativeMethods.DEVPKEY_Device_HardwareIds, ref propertyType,
-                                                        null, 0,
-                                                        ref requiredSize, 0);
-
-                if (requiredSize > 0)
-                {
-                    var descriptionBuffer = new byte[requiredSize];
-                    NativeMethods.SetupDiGetDeviceProperty(deviceInfoSet, ref deviceInfoData,
-                                                            ref NativeMethods.DEVPKEY_Device_HardwareIds, ref propertyType,
-                                                            descriptionBuffer, descriptionBuffer.Length,
-                                                            ref requiredSize, 0);
-
-                    string tmpitnow = System.Text.Encoding.Unicode.GetString(descriptionBuffer);
-                    string tempStrip = tmpitnow.TrimEnd('\0');
-                    string[] tmparray = tempStrip.Split((char)0);
-                    hardwareIds.AddRange(tmparray);
-                }
-
-                NativeMethods.SetupDiDestroyDeviceInfoList(deviceInfoSet);
-            }
-
-            return hardwareIds;
+            return CheckForSysDevice(@"root\HidHide");
         }
 
-        public static bool IsHidGuardianInstalled()
+        public static bool IsFakerInputInstalled()
         {
-            return CheckForSysDevice(@"Root\HidGuardian");
+            return CheckForSysDevice(@"root\FakerInput");
         }
 
         const string VIGEMBUS_GUID = "{96E42B22-F5E9-42F8-B043-ED0F932F014F}";
         public static bool IsViGEmBusInstalled()
         {
-            return CheckForDevice(VIGEMBUS_GUID);
+            return vigemInstalled;
         }
 
-        public static string ViGEmBusVersion()
+        public static bool IsRunningSupportedViGEmBus()
         {
-            return GetViGEmDriverProperty(NativeMethods.DEVPKEY_Device_DriverVersion);
+            //return vigemInstalled;
+            return vigemInstalled &&
+                minSupportedViGEmBusVersionInfo.CompareTo(vigemBusVersionInfo) <= 0;
+        }
+
+        public static void RefreshViGEmBusInfo()
+        {
+            FindViGEmDeviceInfo();
+        }
+
+        public static void RefreshHidHideInfo()
+        {
+            hidHideInstalled = IsHidHideInstalled();
+        }
+
+        private static void PopulateFromViGEmBusInfo(ViGEmBusInfo busInfo)
+        {
+            if (busInfo != null)
+            {
+                vigemInstalled = true;
+                vigembusVersion = busInfo.deviceVersionStr;
+                vigemBusVersionInfo = busInfo.deviceVersion;
+            }
+            else
+            {
+                vigemInstalled = false;
+                vigembusVersion = BLANK_VIGEMBUS_VERSION;
+                vigemBusVersionInfo = new Version(BLANK_VIGEMBUS_VERSION);
+            }
+        }
+
+        private static string FakerInputVersion()
+        {
+            // Start with BLANK_FAKERINPUT_VERSION for result
+            string result = BLANK_FAKERINPUT_VERSION;
+            IntPtr deviceInfoSet = NativeMethods.SetupDiGetClassDevs(ref Util.fakerInputGuid, null, 0, NativeMethods.DIGCF_DEVICEINTERFACE);
+            NativeMethods.SP_DEVINFO_DATA deviceInfoData = new NativeMethods.SP_DEVINFO_DATA();
+            deviceInfoData.cbSize = System.Runtime.InteropServices.Marshal.SizeOf(deviceInfoData);
+            bool foundDev = false;
+            //bool success = NativeMethods.SetupDiEnumDeviceInfo(deviceInfoSet, 0, ref deviceInfoData);
+            for (int i = 0; !foundDev && NativeMethods.SetupDiEnumDeviceInfo(deviceInfoSet, i, ref deviceInfoData); i++)
+            {
+                ulong devPropertyType = 0;
+                int requiredSizeProp = 0;
+                NativeMethods.SetupDiGetDeviceProperty(deviceInfoSet, ref deviceInfoData,
+                    ref NativeMethods.DEVPKEY_Device_DriverVersion, ref devPropertyType, null, 0, ref requiredSizeProp, 0);
+
+                if (requiredSizeProp > 0)
+                {
+                    var versionTextBuffer = new byte[requiredSizeProp];
+                    NativeMethods.SetupDiGetDeviceProperty(deviceInfoSet, ref deviceInfoData,
+                        ref NativeMethods.DEVPKEY_Device_DriverVersion, ref devPropertyType, versionTextBuffer, requiredSizeProp, ref requiredSizeProp, 0);
+
+                    string tmpitnow = System.Text.Encoding.Unicode.GetString(versionTextBuffer);
+                    string tempStrip = tmpitnow.TrimEnd('\0');
+                    foundDev = true;
+                    result = tempStrip;
+                }
+            }
+
+            if (deviceInfoSet.ToInt64() != NativeMethods.INVALID_HANDLE_VALUE)
+            {
+                NativeMethods.SetupDiDestroyDeviceInfoList(deviceInfoSet);
+            }
+
+            return result;
         }
 
         public static void FindConfigLocation()
         {
-            if (File.Exists(exedirpath + "\\Auto Profiles.xml")
-                && File.Exists(appDataPpath + "\\Auto Profiles.xml"))
+            bool programFolderAutoProfilesExists = File.Exists(Path.Combine(exedirpath, "Auto Profiles.xml"));
+            bool appDataAutoProfilesExists = File.Exists(Path.Combine(appDataPpath, "Auto Profiles.xml"));
+            //bool localAppDataAutoProfilesExists = File.Exists(Path.Combine(localAppDataPpath, "Auto Profiles.xml"));
+            //bool systemAppConfigExists = appDataAutoProfilesExists || localAppDataAutoProfilesExists;
+            bool systemAppConfigExists = appDataAutoProfilesExists;
+            bool isSameFolder = appDataAutoProfilesExists && exedirpath == appDataPpath;
+
+            if (programFolderAutoProfilesExists && appDataAutoProfilesExists &&
+                !isSameFolder)
             {
                 Global.firstRun = true;
                 Global.multisavespots = true;
             }
-            else if (File.Exists(exedirpath + "\\Auto Profiles.xml"))
+            else if (programFolderAutoProfilesExists)
+            {
                 SaveWhere(exedirpath);
-            else if (File.Exists(appDataPpath + "\\Auto Profiles.xml"))
+            }
+            //else if (localAppDataAutoProfilesExists)
+            //{
+            //    SaveWhere(localAppDataPpath);
+            //}
+            else if (appDataAutoProfilesExists)
+            {
                 SaveWhere(appDataPpath);
-            else if (!File.Exists(exedirpath + "\\Auto Profiles.xml")
-                && !File.Exists(appDataPpath + "\\Auto Profiles.xml"))
+            }
+            else if (!programFolderAutoProfilesExists && !appDataAutoProfilesExists)
             {
                 Global.firstRun = true;
                 Global.multisavespots = false;
@@ -1857,18 +2029,6 @@ namespace DS4Windows
             //return m_Config.r2Maxzone[index];
         }
 
-        public static int[] LSCurve => m_Config.lsCurve;
-        public static int getLSCurve(int index)
-        {
-            return m_Config.lsCurve[index];
-        }
-
-        public static int[] RSCurve => m_Config.rsCurve;
-        public static int getRSCurve(int index)
-        {
-            return m_Config.rsCurve[index];
-        }
-
         public static double[] LSRotation => m_Config.LSRotation;
         public static double getLSRotation(int index)
         {
@@ -2227,10 +2387,34 @@ namespace DS4Windows
             tempprofileDistance[device] = false;
         }
 
+        public static void LoadBlankDS4Profile(int device, bool launchprogram, ControlService control,
+            bool xinputChange = true, bool postLoad = true)
+        {
+            m_Config.LoadBlankDS4Profile(device, launchprogram, control, "", xinputChange, postLoad);
+            m_Config.EstablishDefaultSpecialActions(device);
+            m_Config.CacheExtraProfileInfo(device);
+
+            tempprofilename[device] = string.Empty;
+            useTempProfile[device] = false;
+            tempprofileDistance[device] = false;
+        }
+
         public static void LoadDefaultGamepadGyroProfile(int device, bool launchprogram, ControlService control,
             bool xinputChange = true, bool postLoad = true)
         {
             m_Config.LoadDefaultGamepadGyroProfile(device, launchprogram, control, "", xinputChange, postLoad);
+            m_Config.EstablishDefaultSpecialActions(device);
+            m_Config.CacheExtraProfileInfo(device);
+
+            tempprofilename[device] = string.Empty;
+            useTempProfile[device] = false;
+            tempprofileDistance[device] = false;
+        }
+
+        public static void LoadDefaultDS4GamepadGyroProfile(int device, bool launchprogram, ControlService control,
+            bool xinputChange = true, bool postLoad = true)
+        {
+            m_Config.LoadDefaultDS4GamepadGyroProfile(device, launchprogram, control, "", xinputChange, postLoad);
             m_Config.EstablishDefaultSpecialActions(device);
             m_Config.CacheExtraProfileInfo(device);
 
@@ -2251,10 +2435,34 @@ namespace DS4Windows
             tempprofileDistance[device] = false;
         }
 
+        public static void LoadDefaultDS4MixedControlsProfile(int device, bool launchprogram, ControlService control,
+            bool xinputChange = true, bool postLoad = true)
+        {
+            m_Config.LoadDefaultMixedControlsProfile(device, launchprogram, control, "", xinputChange, postLoad);
+            m_Config.EstablishDefaultSpecialActions(device);
+            m_Config.CacheExtraProfileInfo(device);
+
+            tempprofilename[device] = string.Empty;
+            useTempProfile[device] = false;
+            tempprofileDistance[device] = false;
+        }
+
         public static void LoadDefaultMixedGyroMouseProfile(int device, bool launchprogram, ControlService control,
             bool xinputChange = true, bool postLoad = true)
         {
             m_Config.LoadDefaultMixedGyroMouseProfile(device, launchprogram, control, "", xinputChange, postLoad);
+            m_Config.EstablishDefaultSpecialActions(device);
+            m_Config.CacheExtraProfileInfo(device);
+
+            tempprofilename[device] = string.Empty;
+            useTempProfile[device] = false;
+            tempprofileDistance[device] = false;
+        }
+
+        public static void LoadDefaultDS4MixedGyroMouseProfile(int device, bool launchprogram, ControlService control,
+            bool xinputChange = true, bool postLoad = true)
+        {
+            m_Config.LoadDefaultDS4MixedGyroMouseProfile(device, launchprogram, control, "", xinputChange, postLoad);
             m_Config.EstablishDefaultSpecialActions(device);
             m_Config.CacheExtraProfileInfo(device);
 
@@ -2429,14 +2637,65 @@ namespace DS4Windows
         {
             return (value < min) ? min : (value > max) ? max : value;
         }
+
+        public static void InitOutputKBMHandler(string identifier)
+        {
+            outputKBMHandler = VirtualKBMFactory.DetermineHandler(identifier);
+        }
+
+        public static void InitOutputKBMMapping(string identifier)
+        {
+            outputKBMMapping = VirtualKBMFactory.GetMappingInstance(identifier);
+        }
+
+        public static void RefreshFakerInputInfo()
+        {
+            fakerInputInstalled = IsFakerInputInstalled();
+            fakerInputVersion = FakerInputVersion();
+        }
+
+        /// <summary>
+        /// Take Windows virtual key value and refresh action alias for currently used output KB+M system
+        /// </summary>
+        /// <param name="setting">Instance of edited DS4ControlSettings object</param>
+        /// <param name="shift">Flag to indicate if shift action is being modified</param>
+        public static void RefreshActionAlias(DS4ControlSettings setting, bool shift)
+        {
+            if (!shift)
+            {
+                setting.action.actionAlias = 0;
+                if (setting.actionType == DS4ControlSettings.ActionType.Key)
+                {
+                    setting.action.actionAlias = outputKBMMapping.GetRealEventKey(Convert.ToUInt32(setting.action.actionKey));
+                }
+            }
+            else
+            {
+                setting.shiftAction.actionAlias = 0;
+                if (setting.shiftActionType == DS4ControlSettings.ActionType.Key)
+                {
+                    setting.shiftAction.actionAlias = outputKBMMapping.GetRealEventKey(Convert.ToUInt32(setting.shiftAction.actionKey));
+                }
+            }
+        }
+
+        public static void RefreshExtrasButtons(int deviceNum, List<DS4Controls> devButtons)
+        {
+            m_Config.ds4controlSettings[deviceNum].ResetExtraButtons();
+            if (devButtons != null)
+            {
+                m_Config.ds4controlSettings[deviceNum].EstablishExtraButtons(devButtons);
+            }
+        }
     }
 
     public class BackingStore
     {
         public const double DEFAULT_UDP_SMOOTH_MINCUTOFF = 0.4;
         public const double DEFAULT_UDP_SMOOTH_BETA = 0.2;
+        // Use 15 minutes for default Idle Disconnect when initially enabling the option
+        public const int DEFAULT_ENABLE_IDLE_DISCONN_MINS = 15;
 
-        //public String m_Profile = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\\DS4Tool" + "\\Profiles.xml";
         public String m_Profile = Directory.GetParent(Assembly.GetExecutingAssembly().Location).FullName + "\\Profiles.xml";
         public String m_Actions = Global.appdatapath + "\\Actions.xml";
         public string m_linkedProfiles = Global.appdatapath + "\\LinkedProfiles.xml";
@@ -2709,8 +2968,6 @@ namespace DS4Windows
         public int[] sASteeringWheelEmulationRange = new int[Global.TEST_PROFILE_ITEM_COUNT] { 360, 360, 360, 360, 360, 360, 360, 360, 360 };
         public int[][] touchDisInvertTriggers = new int[Global.TEST_PROFILE_ITEM_COUNT][] { new int[1] { -1 }, new int[1] { -1 }, new int[1] { -1 },
             new int[1] { -1 }, new int[1] { -1 }, new int[1] { -1 }, new int[1] { -1 }, new int[1] { -1 }, new int[1] { -1 } };
-        public int[] lsCurve = new int[Global.TEST_PROFILE_ITEM_COUNT] { 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-        public int[] rsCurve = new int[Global.TEST_PROFILE_ITEM_COUNT] { 0, 0, 0, 0, 0, 0, 0, 0, 0 };
         public Boolean useExclusiveMode = false; // Re-enable Ex Mode
         public Int32 formWidth = 782;
         public Int32 formHeight = 550;
@@ -3230,6 +3487,8 @@ namespace DS4Windows
                 XmlNode xmlRSVerticalScale = m_Xdoc.CreateNode(XmlNodeType.Element, "RSVerticalScale", null); xmlRSVerticalScale.InnerText = rsModInfo[device].verticalScale.ToString(); rootElement.AppendChild(xmlRSVerticalScale);
                 XmlNode xmlLSMaxOutput = m_Xdoc.CreateNode(XmlNodeType.Element, "LSMaxOutput", null); xmlLSMaxOutput.InnerText = lsModInfo[device].maxOutput.ToString(); rootElement.AppendChild(xmlLSMaxOutput);
                 XmlNode xmlRSMaxOutput = m_Xdoc.CreateNode(XmlNodeType.Element, "RSMaxOutput", null); xmlRSMaxOutput.InnerText = rsModInfo[device].maxOutput.ToString(); rootElement.AppendChild(xmlRSMaxOutput);
+                XmlNode xmlLSMaxOutputForce = m_Xdoc.CreateNode(XmlNodeType.Element, "LSMaxOutputForce", null); xmlLSMaxOutputForce.InnerText = lsModInfo[device].maxOutputForce.ToString(); rootElement.AppendChild(xmlLSMaxOutputForce);
+                XmlNode xmlRSMaxOutputForce = m_Xdoc.CreateNode(XmlNodeType.Element, "RSMaxOutputForce", null); xmlRSMaxOutputForce.InnerText = rsModInfo[device].maxOutputForce.ToString(); rootElement.AppendChild(xmlRSMaxOutputForce);
                 XmlNode xmlLSDeadZoneType = m_Xdoc.CreateNode(XmlNodeType.Element, "LSDeadZoneType", null); xmlLSDeadZoneType.InnerText = lsModInfo[device].deadzoneType.ToString(); rootElement.AppendChild(xmlLSDeadZoneType);
                 XmlNode xmlRSDeadZoneType = m_Xdoc.CreateNode(XmlNodeType.Element, "RSDeadZoneType", null); xmlRSDeadZoneType.InnerText = rsModInfo[device].deadzoneType.ToString(); rootElement.AppendChild(xmlRSDeadZoneType);
 
@@ -3259,6 +3518,10 @@ namespace DS4Windows
                 XmlNode xmlRSRotation = m_Xdoc.CreateNode(XmlNodeType.Element, "RSRotation", null); xmlRSRotation.InnerText = Convert.ToInt32(RSRotation[device] * 180.0 / Math.PI).ToString(); rootElement.AppendChild(xmlRSRotation);
                 XmlNode xmlLSFuzz = m_Xdoc.CreateNode(XmlNodeType.Element, "LSFuzz", null); xmlLSFuzz.InnerText = lsModInfo[device].fuzz.ToString(); rootElement.AppendChild(xmlLSFuzz);
                 XmlNode xmlRSFuzz = m_Xdoc.CreateNode(XmlNodeType.Element, "RSFuzz", null); xmlRSFuzz.InnerText = rsModInfo[device].fuzz.ToString(); rootElement.AppendChild(xmlRSFuzz);
+                XmlNode xmlLSOuterBindDead = m_Xdoc.CreateNode(XmlNodeType.Element, "LSOuterBindDead", null); xmlLSOuterBindDead.InnerText = Convert.ToInt32(lsModInfo[device].outerBindDeadZone).ToString(); rootElement.AppendChild(xmlLSOuterBindDead);
+                XmlNode xmlRSOuterBindDead = m_Xdoc.CreateNode(XmlNodeType.Element, "RSOuterBindDead", null); xmlRSOuterBindDead.InnerText = Convert.ToInt32(rsModInfo[device].outerBindDeadZone).ToString(); rootElement.AppendChild(xmlRSOuterBindDead);
+                XmlNode xmlLSOuterBindInvert = m_Xdoc.CreateNode(XmlNodeType.Element, "LSOuterBindInvert", null); xmlLSOuterBindInvert.InnerText = lsModInfo[device].outerBindInvert.ToString(); rootElement.AppendChild(xmlLSOuterBindInvert);
+                XmlNode xmlRSOuterBindInvert = m_Xdoc.CreateNode(XmlNodeType.Element, "RSOuterBindInvert", null); xmlRSOuterBindInvert.InnerText = rsModInfo[device].outerBindInvert.ToString(); rootElement.AppendChild(xmlRSOuterBindInvert);
 
                 XmlNode xmlSXD = m_Xdoc.CreateNode(XmlNodeType.Element, "SXDeadZone", null); xmlSXD.InnerText = SXDeadzone[device].ToString(); rootElement.AppendChild(xmlSXD);
                 XmlNode xmlSZD = m_Xdoc.CreateNode(XmlNodeType.Element, "SZDeadZone", null); xmlSZD.InnerText = SZDeadzone[device].ToString(); rootElement.AppendChild(xmlSZD);
@@ -3337,6 +3600,8 @@ namespace DS4Windows
                 XmlNode xmlGyroMStickHAxis = m_Xdoc.CreateNode(XmlNodeType.Element, "GyroMouseStickHAxis", null); xmlGyroMStickHAxis.InnerText = gyroMouseStickHorizontalAxis[device].ToString(); rootElement.AppendChild(xmlGyroMStickHAxis);
                 XmlNode xmlGyroMStickDZ = m_Xdoc.CreateNode(XmlNodeType.Element, "GyroMouseStickDeadZone", null); xmlGyroMStickDZ.InnerText = gyroMStickInfo[device].deadZone.ToString(); rootElement.AppendChild(xmlGyroMStickDZ);
                 XmlNode xmlGyroMStickMaxZ = m_Xdoc.CreateNode(XmlNodeType.Element, "GyroMouseStickMaxZone", null); xmlGyroMStickMaxZ.InnerText = gyroMStickInfo[device].maxZone.ToString(); rootElement.AppendChild(xmlGyroMStickMaxZ);
+                XmlNode xmlGyroMStickOutputStick = m_Xdoc.CreateNode(XmlNodeType.Element, "GyroMouseStickOutputStick", null); xmlGyroMStickOutputStick.InnerText = gyroMStickInfo[device].outputStick.ToString(); rootElement.AppendChild(xmlGyroMStickOutputStick);
+                XmlNode xmlGyroMStickOutputStickAxes = m_Xdoc.CreateNode(XmlNodeType.Element, "GyroMouseStickOutputStickAxes", null); xmlGyroMStickOutputStickAxes.InnerText = gyroMStickInfo[device].outputStickDir.ToString(); rootElement.AppendChild(xmlGyroMStickOutputStickAxes);
                 XmlNode xmlGyroMStickAntiDX = m_Xdoc.CreateNode(XmlNodeType.Element, "GyroMouseStickAntiDeadX", null); xmlGyroMStickAntiDX.InnerText = gyroMStickInfo[device].antiDeadX.ToString(); rootElement.AppendChild(xmlGyroMStickAntiDX);
                 XmlNode xmlGyroMStickAntiDY = m_Xdoc.CreateNode(XmlNodeType.Element, "GyroMouseStickAntiDeadY", null); xmlGyroMStickAntiDY.InnerText = gyroMStickInfo[device].antiDeadY.ToString(); rootElement.AppendChild(xmlGyroMStickAntiDY);
                 XmlNode xmlGyroMStickInvert = m_Xdoc.CreateNode(XmlNodeType.Element, "GyroMouseStickInvert", null); xmlGyroMStickInvert.InnerText = gyroMStickInfo[device].inverted.ToString(); rootElement.AppendChild(xmlGyroMStickInvert);
@@ -3367,8 +3632,6 @@ namespace DS4Windows
                 XmlNode xmlGyroSwipeDelayTime = m_Xdoc.CreateNode(XmlNodeType.Element, "DelayTime", null); xmlGyroSwipeDelayTime.InnerText = gyroSwipeInfo[device].delayTime.ToString(); xmlGyroSwipeSettingsElement.AppendChild(xmlGyroSwipeDelayTime);
                 rootElement.AppendChild(xmlGyroSwipeSettingsElement);
 
-                XmlNode xmlLSC = m_Xdoc.CreateNode(XmlNodeType.Element, "LSCurve", null); xmlLSC.InnerText = lsCurve[device].ToString(); rootElement.AppendChild(xmlLSC);
-                XmlNode xmlRSC = m_Xdoc.CreateNode(XmlNodeType.Element, "RSCurve", null); xmlRSC.InnerText = rsCurve[device].ToString(); rootElement.AppendChild(xmlRSC);
                 XmlNode xmlProfileActions = m_Xdoc.CreateNode(XmlNodeType.Element, "ProfileActions", null); xmlProfileActions.InnerText = string.Join("/", profileActions[device]); rootElement.AppendChild(xmlProfileActions);
                 XmlNode xmlBTPollRate = m_Xdoc.CreateNode(XmlNodeType.Element, "BTPollRate", null); xmlBTPollRate.InnerText = btPollRate[device].ToString(); rootElement.AppendChild(xmlBTPollRate);
 
@@ -3908,10 +4171,14 @@ namespace DS4Windows
                     m_Xdoc.Load(tmpMigration.ProfileReader);
                     migratePerformed = true;
                 }
-                else
+                else if (tmpMigration.ProfileReader != null)
                 {
                     m_Xdoc.Load(tmpMigration.ProfileReader);
                     //m_Xdoc.Load(profilepath);
+                }
+                else
+                {
+                    Loaded = false;
                 }
 
                 if (m_Xdoc.SelectSingleNode(rootname) == null)
@@ -3937,7 +4204,14 @@ namespace DS4Windows
                 try { Item = m_Xdoc.SelectSingleNode("/" + rootname + "/touchToggle"); Boolean.TryParse(Item.InnerText, out enableTouchToggle[device]); }
                 catch { missingSetting = true; }
 
-                try { Item = m_Xdoc.SelectSingleNode("/" + rootname + "/idleDisconnectTimeout"); Int32.TryParse(Item.InnerText, out idleDisconnectTimeout[device]); }
+                try
+                {
+                    Item = m_Xdoc.SelectSingleNode("/" + rootname + "/idleDisconnectTimeout");
+                    if (int.TryParse(Item?.InnerText ?? "", out int temp))
+                    {
+                        idleDisconnectTimeout[device] = temp;
+                    }
+                }
                 catch { missingSetting = true; }
 
                 try { Item = m_Xdoc.SelectSingleNode("/" + rootname + "/outputDataToDS4"); Boolean.TryParse(Item.InnerText, out enableOutputDataToDS4[device]); }
@@ -4243,11 +4517,73 @@ namespace DS4Windows
 
                 try
                 {
+                    Item = m_Xdoc.SelectSingleNode("/" + rootname + "/LSMaxOutputForce");
+                    if (bool.TryParse(Item?.InnerText ?? "", out bool temp))
+                    {
+                        lsModInfo[device].maxOutputForce = temp;
+                    }
+                }
+                catch { lsModInfo[device].maxOutputForce = StickDeadZoneInfo.DEFAULT_MAXOUTPUT_FORCE; missingSetting = true; }
+
+                try
+                {
                     Item = m_Xdoc.SelectSingleNode("/" + rootname + "/RSMaxOutput"); double temp = 100.0;
                     temp = double.Parse(Item.InnerText);
                     rsModInfo[device].maxOutput = Math.Min(Math.Max(temp, 0.0), 100.0);
                 }
                 catch { rsModInfo[device].maxOutput = 100; missingSetting = true; }
+
+                try
+                {
+                    Item = m_Xdoc.SelectSingleNode("/" + rootname + "/RSMaxOutputForce");
+                    if (bool.TryParse(Item?.InnerText ?? "", out bool temp))
+                    {
+                        rsModInfo[device].maxOutputForce = temp;
+                    }
+                }
+                catch { rsModInfo[device].maxOutputForce = StickDeadZoneInfo.DEFAULT_MAXOUTPUT_FORCE; missingSetting = true; }
+
+                try
+                {
+                    Item = m_Xdoc.SelectSingleNode("/" + rootname + "/LSOuterBindDead");
+                    if (int.TryParse(Item?.InnerText ?? "", out int temp))
+                    {
+                        temp = Math.Min(Math.Max(temp, 0), 100);
+                        lsModInfo[device].outerBindDeadZone = temp;
+                    }
+                }
+                catch { lsModInfo[device].outerBindDeadZone = StickDeadZoneInfo.DEFAULT_OUTER_BIND_DEAD; }
+
+                try
+                {
+                    Item = m_Xdoc.SelectSingleNode("/" + rootname + "/RSOuterBindDead");
+                    if (int.TryParse(Item?.InnerText ?? "", out int temp))
+                    {
+                        temp = Math.Min(Math.Max(temp, 0), 100);
+                        rsModInfo[device].outerBindDeadZone = temp;
+                    }
+                }
+                catch { rsModInfo[device].outerBindDeadZone = StickDeadZoneInfo.DEFAULT_OUTER_BIND_DEAD; }
+
+                try
+                {
+                    Item = m_Xdoc.SelectSingleNode("/" + rootname + "/LSOuterBindInvert");
+                    if (bool.TryParse(Item?.InnerText ?? "", out bool temp))
+                    {
+                        lsModInfo[device].outerBindInvert = temp;
+                    }
+                }
+                catch { lsModInfo[device].outerBindInvert = StickDeadZoneInfo.DEFAULT_OUTER_BIND_INVERT; }
+
+                try
+                {
+                    Item = m_Xdoc.SelectSingleNode("/" + rootname + "/RSOuterBindInvert");
+                    if (bool.TryParse(Item?.InnerText ?? "", out bool temp))
+                    {
+                        rsModInfo[device].outerBindInvert = temp;
+                    }
+                }
+                catch { rsModInfo[device].outerBindInvert = StickDeadZoneInfo.DEFAULT_OUTER_BIND_INVERT; }
 
                 try
                 {
@@ -4712,6 +5048,26 @@ namespace DS4Windows
 
                 try
                 {
+                    Item = m_Xdoc.SelectSingleNode("/" + rootname + "/GyroMouseStickOutputStick");
+                    if (Enum.TryParse(Item?.InnerText ?? "", out GyroMouseStickInfo.OutputStick temp))
+                    {
+                        gyroMStickInfo[device].outputStick = temp;
+                    }
+                }
+                catch { }
+
+                try
+                {
+                    Item = m_Xdoc.SelectSingleNode("/" + rootname + "/GyroMouseStickOutputStickAxes");
+                    if (Enum.TryParse(Item?.InnerText ?? "", out GyroMouseStickInfo.OutputStickAxes temp))
+                    {
+                        gyroMStickInfo[device].outputStickDir = temp;
+                    }
+                }
+                catch { }
+
+                try
+                {
                     Item = m_Xdoc.SelectSingleNode("/" + rootname + "/GyroMouseStickAntiDeadX"); double.TryParse(Item.InnerText, out double temp);
                     gyroMStickInfo[device].antiDeadX = temp;
                 }
@@ -5011,12 +5367,6 @@ namespace DS4Windows
                     SetGyroMouseToggle(device, false, control);
                     missingSetting = true;
                 }
-
-                try { Item = m_Xdoc.SelectSingleNode("/" + rootname + "/LSCurve"); int.TryParse(Item.InnerText, out lsCurve[device]); }
-                catch { lsCurve[device] = 0; missingSetting = true; }
-
-                try { Item = m_Xdoc.SelectSingleNode("/" + rootname + "/RSCurve"); int.TryParse(Item.InnerText, out rsCurve[device]); }
-                catch { rsCurve[device] = 0; missingSetting = true; }
 
                 try {
                     Item = m_Xdoc.SelectSingleNode("/" + rootname + "/BTPollRate");
@@ -6244,7 +6594,7 @@ namespace DS4Windows
                     else if (type == "DisconnectBT")
                     {
                         double doub;
-                        if (double.TryParse(details, out doub))
+                        if (double.TryParse(details, System.Globalization.NumberStyles.Float, Global.configFileDecimalCulture, out doub))
                             actions.Add(new SpecialAction(name, controls, type, "", doub));
                         else
                             actions.Add(new SpecialAction(name, controls, type, ""));
@@ -6252,9 +6602,9 @@ namespace DS4Windows
                     else if (type == "BatteryCheck")
                     {
                         double doub;
-                        if (double.TryParse(details.Split('|')[0], out doub))
+                        if (double.TryParse(details.Split('|')[0], System.Globalization.NumberStyles.Float, Global.configFileDecimalCulture, out doub))
                             actions.Add(new SpecialAction(name, controls, type, details, doub));
-                        else if (double.TryParse(details.Split(',')[0], out doub))
+                        else if (double.TryParse(details.Split(',')[0], System.Globalization.NumberStyles.Float, Global.configFileDecimalCulture, out doub))
                             actions.Add(new SpecialAction(name, controls, type, details, doub));
                         else
                             actions.Add(new SpecialAction(name, controls, type, details));
@@ -6265,7 +6615,7 @@ namespace DS4Windows
                         if (x.ChildNodes[3] != null)
                         {
                             extras = x.ChildNodes[3].InnerText;
-                            if (double.TryParse(x.ChildNodes[4].InnerText, out doub))
+                            if (double.TryParse(x.ChildNodes[4].InnerText, System.Globalization.NumberStyles.Float, Global.configFileDecimalCulture, out doub))
                                 actions.Add(new SpecialAction(name, controls, type, details, doub, extras));
                             else
                                 actions.Add(new SpecialAction(name, controls, type, details, 0, extras));
@@ -6282,7 +6632,7 @@ namespace DS4Windows
                     else if (type == "SASteeringWheelEmulationCalibrate")
                     {
                         double doub;
-                        if (double.TryParse(details, out doub))
+                        if (double.TryParse(details, System.Globalization.NumberStyles.Float, Global.configFileDecimalCulture, out doub))
                             actions.Add(new SpecialAction(name, controls, type, "", doub));
                         else
                             actions.Add(new SpecialAction(name, controls, type, ""));
@@ -6547,6 +6897,7 @@ namespace DS4Windows
                 int index = temp - 1;
                 DS4ControlSettings dcs = ds4settings[deviceNum][index];
                 dcs.UpdateSettings(shift, action, exts, kt, trigger);
+                Global.RefreshActionAlias(dcs, shift);
             }
         }
 
@@ -6803,10 +7154,12 @@ namespace DS4Windows
             lsModInfo[device].maxOutput = rsModInfo[device].maxOutput = 100.0;
             lsModInfo[device].fuzz = rsModInfo[device].fuzz = StickDeadZoneInfo.DEFAULT_FUZZ;
 
-            l2ModInfo[device].deadZone = r2ModInfo[device].deadZone = 0;
-            l2ModInfo[device].antiDeadZone = r2ModInfo[device].antiDeadZone = 0;
-            l2ModInfo[device].maxZone = r2ModInfo[device].maxZone = 100;
-            l2ModInfo[device].maxOutput = r2ModInfo[device].maxOutput = 100.0;
+            //l2ModInfo[device].deadZone = r2ModInfo[device].deadZone = 0;
+            //l2ModInfo[device].antiDeadZone = r2ModInfo[device].antiDeadZone = 0;
+            //l2ModInfo[device].maxZone = r2ModInfo[device].maxZone = 100;
+            //l2ModInfo[device].maxOutput = r2ModInfo[device].maxOutput = 100.0;
+            l2ModInfo[device].Reset();
+            r2ModInfo[device].Reset();
 
             LSRotation[device] = 0.0;
             RSRotation[device] = 0.0;
@@ -6878,7 +7231,6 @@ namespace DS4Windows
             saWheelFuzzValues[device] = 0;
             wheelSmoothInfo[device].Reset();
             touchDisInvertTriggers[device] = new int[1] { -1 };
-            lsCurve[device] = rsCurve[device] = 0;
             gyroSensitivity[device] = 100;
             gyroSensVerticalScale[device] = 100;
             gyroInvert[device] = 0;
@@ -6906,6 +7258,64 @@ namespace DS4Windows
             touchpadRelMouse[device].Reset();
             outputDevType[device] = OutContType.X360;
             ds4Mapping = false;
+        }
+
+        private void PrepareBlankingProfile(int device, ControlService control, out bool xinputPlug, out bool xinputStatus, bool xinputChange = true)
+        {
+            xinputPlug = false;
+            xinputStatus = false;
+
+            OutContType oldContType = Global.activeOutDevType[device];
+
+            // Make sure to reset currently set profile values before parsing
+            ResetProfile(device);
+            ResetMouseProperties(device, control);
+
+            // Only change xinput devices under certain conditions. Avoid
+            // performing this upon program startup before loading devices.
+            if (xinputChange)
+            {
+                CheckOldDevicestatus(device, control, oldContType,
+                    out xinputPlug, out xinputStatus);
+            }
+
+            foreach (DS4ControlSettings dcs in ds4settings[device])
+                dcs.Reset();
+
+            profileActions[device].Clear();
+            containsCustomAction[device] = false;
+            containsCustomExtras[device] = false;
+        }
+
+        public void LoadBlankDS4Profile(int device, bool launchprogram, ControlService control,
+            string propath = "", bool xinputChange = true, bool postLoad = true)
+        {
+            PrepareBlankingProfile(device, control, out bool xinputPlug, out bool xinputStatus, xinputChange);
+
+            StickDeadZoneInfo lsInfo = lsModInfo[device];
+            lsInfo.deadZone = (int)(0.00 * 127);
+            lsInfo.antiDeadZone = 0;
+            lsInfo.maxZone = 100;
+
+            StickDeadZoneInfo rsInfo = rsModInfo[device];
+            rsInfo.deadZone = (int)(0.00 * 127);
+            rsInfo.antiDeadZone = 0;
+            rsInfo.maxZone = 100;
+
+            TriggerDeadZoneZInfo l2Info = l2ModInfo[device];
+            l2Info.deadZone = (byte)(0.00 * 255);
+
+            TriggerDeadZoneZInfo r2Info = r2ModInfo[device];
+            r2Info.deadZone = (byte)(0.00 * 255);
+
+            outputDevType[device] = OutContType.DS4;
+
+            // If a device exists, make sure to transfer relevant profile device
+            // options to device instance
+            if (postLoad && device < Global.MAX_DS4_CONTROLLER_COUNT)
+            {
+                PostLoadSnippet(device, control, xinputStatus, xinputPlug);
+            }
         }
 
         public void LoadBlankProfile(int device, bool launchprogram, ControlService control,
@@ -6985,6 +7395,45 @@ namespace DS4Windows
             }
         }
 
+
+        public void LoadDefaultDS4GamepadGyroProfile(int device, bool launchprogram, ControlService control,
+            string propath = "", bool xinputChange = true, bool postLoad = true)
+        {
+            PrepareBlankingProfile(device, control, out bool xinputPlug, out bool xinputStatus, xinputChange);
+
+            StickDeadZoneInfo lsInfo = lsModInfo[device];
+            lsInfo.deadZone = (int)(0.00 * 127);
+            lsInfo.antiDeadZone = 0;
+            lsInfo.maxZone = 100;
+
+            StickDeadZoneInfo rsInfo = rsModInfo[device];
+            rsInfo.deadZone = (int)(0.00 * 127);
+            rsInfo.antiDeadZone = 0;
+            rsInfo.maxZone = 100;
+
+            TriggerDeadZoneZInfo l2Info = l2ModInfo[device];
+            l2Info.deadZone = (byte)(0.00 * 255);
+
+            TriggerDeadZoneZInfo r2Info = r2ModInfo[device];
+            r2Info.deadZone = (byte)(0.00 * 255);
+
+            gyroOutMode[device] = GyroOutMode.MouseJoystick;
+            sAMouseStickTriggers[device] = "4";
+            sAMouseStickTriggerCond[device] = true;
+            gyroMouseStickTriggerTurns[device] = false;
+            gyroMStickInfo[device].useSmoothing = true;
+            gyroMStickInfo[device].smoothingMethod = GyroMouseStickInfo.SmoothingMethod.OneEuro;
+
+            outputDevType[device] = OutContType.DS4;
+
+            // If a device exists, make sure to transfer relevant profile device
+            // options to device instance
+            if (postLoad && device < Global.MAX_DS4_CONTROLLER_COUNT)
+            {
+                PostLoadSnippet(device, control, xinputStatus, xinputPlug);
+            }
+        }
+
         public void LoadDefaultMixedGyroMouseProfile(int device, bool launchprogram, ControlService control,
             string propath = "", bool xinputChange = true, bool postLoad = true)
         {
@@ -7023,6 +7472,74 @@ namespace DS4Windows
             rsInfo.deadZone = (int)(0.10 * 127);
             rsInfo.antiDeadZone = 0;
             rsInfo.maxZone = 90;
+
+            // If a device exists, make sure to transfer relevant profile device
+            // options to device instance
+            if (postLoad && device < Global.MAX_DS4_CONTROLLER_COUNT)
+            {
+                PostLoadSnippet(device, control, xinputStatus, xinputPlug);
+            }
+        }
+
+
+        public void LoadDefaultDS4MixedGyroMouseProfile(int device, bool launchprogram, ControlService control,
+            string propath = "", bool xinputChange = true, bool postLoad = true)
+        {
+            PrepareBlankingProfile(device, control, out bool xinputPlug, out bool xinputStatus, xinputChange);
+
+            StickDeadZoneInfo lsInfo = lsModInfo[device];
+            lsInfo.deadZone = (int)(0.00 * 127);
+            lsInfo.antiDeadZone = 0;
+            lsInfo.maxZone = 100;
+
+            StickDeadZoneInfo rsInfo = rsModInfo[device];
+            rsInfo.deadZone = (int)(0.10 * 127);
+            rsInfo.antiDeadZone = 0;
+            rsInfo.maxZone = 100;
+
+            TriggerDeadZoneZInfo l2Info = l2ModInfo[device];
+            l2Info.deadZone = (byte)(0.00 * 255);
+
+            TriggerDeadZoneZInfo r2Info = r2ModInfo[device];
+            r2Info.deadZone = (byte)(0.00 * 255);
+
+            gyroOutMode[device] = GyroOutMode.Mouse;
+            sATriggers[device] = "4";
+            sATriggerCond[device] = true;
+            gyroTriggerTurns[device] = false;
+            gyroMouseInfo[device].enableSmoothing = true;
+            gyroMouseInfo[device].smoothingMethod = GyroMouseInfo.SmoothingMethod.OneEuro;
+
+            outputDevType[device] = OutContType.DS4;
+
+            // If a device exists, make sure to transfer relevant profile device
+            // options to device instance
+            if (postLoad && device < Global.MAX_DS4_CONTROLLER_COUNT)
+            {
+                PostLoadSnippet(device, control, xinputStatus, xinputPlug);
+            }
+        }
+
+        public void LoadDefaultDS4MixedControlsProfile(int device, bool launchprogram, ControlService control,
+            string propath = "", bool xinputChange = true, bool postLoad = true)
+        {
+            PrepareBlankingProfile(device, control, out bool xinputPlug, out bool xinputStatus, xinputChange);
+
+            DS4ControlSettings setting = GetDS4CSetting(device, DS4Controls.RYNeg);
+            setting.UpdateSettings(false, X360Controls.MouseUp, "", DS4KeyType.None);
+            setting = GetDS4CSetting(device, DS4Controls.RYPos);
+            setting.UpdateSettings(false, X360Controls.MouseDown, "", DS4KeyType.None);
+            setting = GetDS4CSetting(device, DS4Controls.RXNeg);
+            setting.UpdateSettings(false, X360Controls.MouseLeft, "", DS4KeyType.None);
+            setting = GetDS4CSetting(device, DS4Controls.RXPos);
+            setting.UpdateSettings(false, X360Controls.MouseRight, "", DS4KeyType.None);
+
+            StickDeadZoneInfo rsInfo = rsModInfo[device];
+            rsInfo.deadZone = (int)(0.035 * 127);
+            rsInfo.antiDeadZone = 0;
+            rsInfo.maxZone = 90;
+
+            outputDevType[device] = OutContType.DS4;
 
             // If a device exists, make sure to transfer relevant profile device
             // options to device instance
@@ -7343,8 +7860,8 @@ namespace DS4Windows
             {
                 tempDev.queueEvent(() =>
                 {
-                    tempDev.setIdleTimeout(idleDisconnectTimeout[device]);
-                    tempDev.setBTPollRate(btPollRate[device]);
+                    //tempDev.setIdleTimeout(idleDisconnectTimeout[device]);
+                    //tempDev.setBTPollRate(btPollRate[device]);
                     if (xinputStatus && tempDev.PrimaryDevice)
                     {
                         if (xinputPlug)
@@ -7368,12 +7885,13 @@ namespace DS4Windows
                         }
                     }
 
-                    tempDev.RumbleAutostopTime = rumbleAutostopTime[device];
-                    tempDev.setRumble(0, 0);
-                    tempDev.LightBarColor = Global.getMainColor(device);
+                    //tempDev.RumbleAutostopTime = rumbleAutostopTime[device];
+                    //tempDev.setRumble(0, 0);
+                    //tempDev.LightBarColor = Global.getMainColor(device);
+                    control.CheckProfileOptions(device, tempDev, true);
                 });
 
-                Program.rootHub.touchPad[device]?.ResetTrackAccel(trackballFriction[device]);
+                //Program.rootHub.touchPad[device]?.ResetTrackAccel(trackballFriction[device]);
             }
         }
     }
@@ -7551,6 +8069,9 @@ namespace DS4Windows
 
                 case "PS": return DS4Controls.PS;
                 case "Mute": return DS4Controls.Mute;
+                case "Capture": return DS4Controls.Capture;
+                case "SideL": return DS4Controls.SideL;
+                case "SideR": return DS4Controls.SideL;
                 case "Left Stick Left": return DS4Controls.LXNeg;
                 case "Left Stick Up": return DS4Controls.LYNeg;
                 case "Right Stick Left": return DS4Controls.RXNeg;

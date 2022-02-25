@@ -223,7 +223,11 @@ namespace DS4WinWPF.DS4Forms.ViewModels
 
         private void OpenProgramFolderItem_Click(object sender, System.Windows.RoutedEventArgs e)
         {
-            Process.Start(Global.exedirpath);
+            ProcessStartInfo startInfo = new ProcessStartInfo(Global.exedirpath);
+            startInfo.UseShellExecute = true;
+            using (Process temp = Process.Start(startInfo))
+            {
+            }
         }
 
         private void OpenMenuItem_Click(object sender, System.Windows.RoutedEventArgs e)
@@ -241,7 +245,10 @@ namespace DS4WinWPF.DS4Forms.ViewModels
             MenuItem item = sender as MenuItem;
             int idx = Convert.ToInt32(item.Tag);
             ControllerHolder holder = controllerList[idx];
-            ProfileSelected?.Invoke(this, holder, item.Header.ToString());
+            // Un-escape underscores is MenuItem header. Header holds the profile name
+            string tempProfileName = Regex.Replace(item.Header.ToString(),
+                "_{2}", "_");
+            ProfileSelected?.Invoke(this, holder, tempProfileName);
         }
 
         private void DisconnectMenuItem_Click(object sender,

@@ -232,7 +232,7 @@ namespace DS4WinWPF.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Close DS4Windows via the notification icon.
+        ///   Looks up a localized string similar to Closing main window minimizes app. Quitting app will be done via the notification icon.
         /// </summary>
         public static string CloseMinimize {
             get {
@@ -363,15 +363,6 @@ namespace DS4WinWPF.Properties {
         public static string DimByBattery {
             get {
                 return ResourceManager.GetString("DimByBattery", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Turn off X360 input and only use the DS4&apos;s native input, hide ds4 must be off (Wired Only).
-        /// </summary>
-        public static string DinputOnly {
-            get {
-                return ResourceManager.GetString("DinputOnly", resourceCulture);
             }
         }
         
@@ -973,15 +964,6 @@ namespace DS4WinWPF.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Choose the type of output virtual controller (Applies on profile save).
-        /// </summary>
-        public static string OutContNotice {
-            get {
-                return ResourceManager.GetString("OutContNotice", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized string similar to Please Download the Updater now, place it in the programs folder and rename to DS4Updater.exe if on x86, then check for update again. DS4Windows will attempt to open DS4Updater Release page when this window is closed..
         /// </summary>
         public static string PleaseDownloadUpdater {
@@ -1036,7 +1018,7 @@ namespace DS4WinWPF.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to EXPERIMENTAL: Auto-Disable BT when connecting to USB.
+        ///   Looks up a localized string similar to Auto-Disable BT when connecting to USB.
         /// </summary>
         public static string QuickCharge {
             get {
@@ -1540,7 +1522,7 @@ namespace DS4WinWPF.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to DS4Windows application is up-to-date.
+        ///   Looks up a localized string similar to DS4Windows application is up-to-date..
         /// </summary>
         public static string UpToDate {
             get {

@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -8,12 +7,8 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
-using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
 using Microsoft.Win32;
 using System.Windows.Interop;
 using System.Diagnostics;
@@ -155,8 +150,6 @@ namespace DS4WinWPF.DS4Forms
                     App.rootHub.Start();
                     //root.rootHubtest.Start();
                 }
-
-                //UpdateTheUpdater();
             });
 
             // Log exceptions that might occur
@@ -423,6 +416,7 @@ namespace DS4WinWPF.DS4Forms
                 scope.Connect();
             }
             catch (COMException) { }
+            catch (ManagementException) { }
 
             if (scope.IsConnected)
             {
@@ -560,38 +554,13 @@ Suspend support not enabled.", true);
                             StartStopBtn.IsEnabled = false;
                         }));
 
-                        App.rootHub.Stop();
+                        App.rootHub.Stop(immediateUnplug: true);
                         wasrunning = true;
                     }
 
                     break;
 
                 default: break;
-            }
-        }
-
-        private void UpdateTheUpdater()
-        {
-            if (File.Exists(Global.exedirpath + "\\Update Files\\DS4Windows\\DS4Updater.exe"))
-            {
-                Process[] processes = Process.GetProcessesByName("DS4Updater");
-                while (processes.Length > 0)
-                {
-                    Thread.Sleep(500);
-                    processes = Process.GetProcessesByName("DS4Updater");
-                }
-
-                if (!Global.AdminNeeded())
-                {
-                    File.Delete(Global.exedirpath + "\\DS4Updater.exe");
-                    File.Move(Global.exedirpath + "\\Update Files\\DS4Windows\\DS4Updater.exe",
-                        Global.exedirpath + "\\DS4Updater.exe");
-                    Directory.Delete(Global.exedirpath + "\\Update Files", true);
-                }
-                else
-                {
-                    Util.ElevatedCopyUpdater(Global.exedirpath + "\\Update Files\\DS4Windows\\DS4Updater.exe", true);
-                }
             }
         }
 
@@ -848,7 +817,7 @@ Suspend support not enabled.", true);
             Task serviceTask = Task.Run(() =>
             {
                 if (service.running)
-                    service.Stop();
+                    service.Stop(immediateUnplug: true);
                 else
                     service.Start();
             });
@@ -893,6 +862,7 @@ Suspend support not enabled.", true);
             newProfListBtn.IsEnabled = true;
             editProfBtn.IsEnabled = true;
             deleteProfBtn.IsEnabled = true;
+            renameProfBtn.IsEnabled = true;
             dupProfBtn.IsEnabled = true;
             importProfBtn.IsEnabled = true;
             exportProfBtn.IsEnabled = true;
@@ -1309,7 +1279,7 @@ Suspend support not enabled.", true);
                 loopHotplug = hotplugCounter > 0;
             }
 
-            Program.rootHub.UpdateHidGuardAttributes();
+            Program.rootHub.UpdateHidHiddenAttributes();
             while (loopHotplug == true)
             {
                 Thread.Sleep(HOTPLUG_CHECK_DELAY);
@@ -1437,6 +1407,12 @@ Suspend support not enabled.", true);
             {
                 using (Process temp = Process.Start(startInfo))
                 {
+                    temp.WaitForExit();
+                    Global.RefreshHidHideInfo();
+                    Global.RefreshFakerInputInfo();
+                    Program.rootHub.RefreshOutputKBMHandler();
+
+                    settingsWrapVM.DriverCheckRefresh();
                 }
             }
             catch { }
@@ -1454,7 +1430,7 @@ Suspend support not enabled.", true);
         private void CheckDrivers()
         {
             bool deriverinstalled = Global.IsViGEmBusInstalled();
-            if (!deriverinstalled)
+            if (!deriverinstalled || !Global.IsRunningSupportedViGEmBus())
             {
                 ProcessStartInfo startInfo = new ProcessStartInfo();
                 startInfo.FileName = $"{Global.exelocation}";
@@ -1479,7 +1455,7 @@ Suspend support not enabled.", true);
             dialog.Filter = "DS4Windows Profile (*.xml)|*.xml";
             dialog.Title = "Select Profile to Import File";
             if (Global.appdatapath != Global.exedirpath)
-                dialog.InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\\DS4Windows" + @"\Profiles\";
+                dialog.InitialDirectory = Path.Combine(Global.appDataPpath, "Profiles");
             else
                 dialog.InitialDirectory = Global.exedirpath + @"\Profiles\";
 
@@ -1720,10 +1696,11 @@ Suspend support not enabled.", true);
             Util.StartProcessHelper("https://gamepad-tester.com/");
         }
 
-        private void HidNinjaBtn_Click(object sender, RoutedEventArgs e)
+        private void HidHideBtn_Click(object sender, RoutedEventArgs e)
         {
-            string path = System.IO.Path.Combine(Global.exedirpath, "Tools",
-                "HidNinja", "HidNinja.exe");
+            string driveLetter = System.IO.Path.GetPathRoot(Global.exedirpath);
+            string path = System.IO.Path.Combine(driveLetter, "Program Files",
+                "Nefarius Software Solutions e.U", "HidHideClient", "HidHideClient.exe");
 
             if (File.Exists(path))
             {
@@ -1772,6 +1749,31 @@ Suspend support not enabled.", true);
 
             optsWindow.Owner = this;
             optsWindow.Show();
+        }
+
+        private void RenameProfBtn_Click(object sender, RoutedEventArgs e)
+        {
+            if (profilesListBox.SelectedIndex >= 0)
+            {
+                int idx = profilesListBox.SelectedIndex;
+                ProfileEntity entity = profileListHolder.ProfileListCol[idx];
+                string filename = Path.Combine(Global.appdatapath,
+                    "Profiles", $"{entity.Name}.xml");
+
+                // Disallow renaming Default profile
+                if (entity.Name != "Default" &&
+                    File.Exists(filename))
+                {
+                    RenameProfileWindow renameWin = new RenameProfileWindow();
+                    renameWin.ChangeProfileName(entity.Name);
+                    bool? result = renameWin.ShowDialog();
+                    if (result.HasValue && result.Value)
+                    {
+                        entity.RenameProfile(renameWin.RenameProfileVM.ProfileName);
+                        trayIconVM.PopulateContextMenu();
+                    }
+                }
+            }
         }
     }
 

@@ -84,16 +84,23 @@ namespace DS4WinWPF.DS4Forms.ViewModels
             }
         }
 
-        private void Service_HotplugController(ControlService sender, DS4Device device, int index)
+        private void Service_HotplugController(ControlService sender,
+            DS4Device device, int index)
         {
-            CompositeDeviceModel temp = new CompositeDeviceModel(device,
-                index, Global.ProfilePath[index], profileListHolder);
-            _colListLocker.EnterWriteLock();
-            controllerCol.Add(temp);
-            controllerDict.Add(index, temp);
-            _colListLocker.ExitWriteLock();
+            // Engage write lock pre-maturely
+            using (WriteLocker readLock = new WriteLocker(_colListLocker))
+            {
+                // Look if device exists. Also, check if disconnect might be occurring
+                if (!controllerDict.ContainsKey(index) && !device.IsRemoving)
+                {
+                    CompositeDeviceModel temp = new CompositeDeviceModel(device,
+                        index, Global.ProfilePath[index], profileListHolder);
+                    controllerCol.Add(temp);
+                    controllerDict.Add(index, temp);
 
-            device.Removal += Controller_Removal;
+                    device.Removal += Controller_Removal;
+                }
+            }
         }
 
         private void ClearControllerList(object sender, EventArgs e)
@@ -130,8 +137,8 @@ namespace DS4WinWPF.DS4Forms.ViewModels
                     }
                     _colListLocker.ExitReadLock();
 
-
-                    if (!found)
+                    // Check for new device. Also, check if disconnect might be occurring
+                    if (!found && !currentDev.IsRemoving)
                     {
                         //int idx = controllerCol.Count;
                         _colListLocker.EnterWriteLock();
@@ -265,6 +272,7 @@ namespace DS4WinWPF.DS4Forms.ViewModels
                         imgName = (string)App.Current.FindResource("CheckedImg");
                         source = $"/DS4Windows;component/Resources/{imgName}";
                         break;
+                    case DS4Device.ExclusiveStatus.HidHideAffected:
                     case DS4Device.ExclusiveStatus.HidGuardAffected:
                         imgName = (string)App.Current.FindResource("KeyImageImg");
                         source = $"/DS4Windows;component/Resources/{imgName}";
@@ -322,14 +330,17 @@ namespace DS4WinWPF.DS4Forms.ViewModels
         {
             get
             {
-                string temp = "Shared Access";
+                string temp = Translations.Strings.SharedAccess;
                 switch(device.CurrentExclusiveStatus)
                 {
                     case DS4Device.ExclusiveStatus.Exclusive:
-                        temp = "Exclusive Access";
+                        temp = Translations.Strings.ExclusiveAccess;
+                        break;
+                    case DS4Device.ExclusiveStatus.HidHideAffected:
+                        temp = Translations.Strings.HidHideAccess;
                         break;
                     case DS4Device.ExclusiveStatus.HidGuardAffected:
-                        temp = "HidGuardian Access";
+                        temp = Translations.Strings.HidGuardianAccess;
                         break;
                     default:
                         break;

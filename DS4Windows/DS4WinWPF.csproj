@@ -15,13 +15,14 @@
     <RunAnalyzersDuringBuild>true</RunAnalyzersDuringBuild>
     <EnableNETAnalyzers>false</EnableNETAnalyzers>
     <ServerGarbageCollection>true</ServerGarbageCollection>
-    <AssemblyVersion>3.0.1</AssemblyVersion>
-    <FileVersion>3.0.1</FileVersion>
-    <Version>3.0.1</Version>
+    <AssemblyVersion>3.0.18</AssemblyVersion>
+    <FileVersion>3.0.18</FileVersion>
+    <Version>3.0.18</Version>
     <Configuration Condition="'$(Configuration)' == ''">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">x64</Platform>
     <Copyright>Copyright © Scarlet.Crush Productions 2012, 2013; InhexSTER, HecticSeptic, electrobrains 2013, 2014; Jays2Kings 2013, 2014, 2015, 2016; Ryochan7 2017, 2018, 2019, 2020, 2021</Copyright>
     <Description>Sony DualShock 4 to Microsoft Xinput controller mapper</Description>
+    <Authors>Ryochan7</Authors>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -68,10 +69,10 @@
 
   <ItemGroup>
     <PackageReference Include="bloomtom.HttpProgress" Version="2.3.2" />
-    <PackageReference Include="DotNetProjects.Extended.Wpf.Toolkit" Version="4.6.96" />
+    <PackageReference Include="DotNetProjects.Extended.Wpf.Toolkit" Version="4.6.97" />
     <PackageReference Include="Hardcodet.NotifyIcon.Wpf.NetCore" Version="1.0.18" />
-    <PackageReference Include="MdXaml" Version="1.9.0" />
-    <PackageReference Include="NLog" Version="4.7.7" />
+    <PackageReference Include="MdXaml" Version="1.10.0" />
+    <PackageReference Include="NLog" Version="4.7.9" />
     <PackageReference Include="Ookii.Dialogs.Wpf" Version="3.1.0" />
     <PackageReference Include="System.Management" Version="5.0.0" />
     <PackageReference Include="TaskScheduler" Version="2.9.1" />
@@ -80,16 +81,18 @@
     <Reference Include="Nefarius.ViGEm.Client">
       <HintPath>..\libs\$(Platform)\Nefarius.ViGEm.Client\Nefarius.ViGEm.Client.dll</HintPath>
     </Reference>
+
+    <Reference Include="FakerInputWrapper">
+      <HintPath>..\libs\$(Platform)\FakerInputWrapper\FakerInputWrapper.dll</HintPath>
+    </Reference>
   </ItemGroup>
 
   <ItemGroup>
-    <Resource Include="Resources\social\bitchute.png" />
     <Resource Include="Resources\social\bittube.png" />
 	<Resource Include="Resources\social\GitHub-Mark-Light-64px.png" />
     <Resource Include="Resources\social\GitHub-Mark-64px.png" />
     <Resource Include="Resources\social\mastodon.png" />
     <Resource Include="Resources\social\minds.png" />
-    <Resource Include="Resources\social\parler.png" />
     <Resource Include="Resources\social\twitter_logo_initial.png" />
     <Resource Include="Resources\social\youtube_social_icon_red.png" />
 
@@ -180,6 +183,12 @@
       <Generator>PublicResXFileCodeGenerator</Generator>
       <LastGenOutput>Resources.Designer.cs</LastGenOutput>
     </EmbeddedResource>
+    <EmbeddedResource Update="Properties\Resources.ja.resx">
+      <DependentUpon>Resources.resx</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Properties\Resources.ru.resx">
+      <DependentUpon>Resources.resx</DependentUpon>
+    </EmbeddedResource>
   </ItemGroup>
 
   <ItemGroup>
@@ -227,6 +236,9 @@
     <EmbeddedResource Update="Translations\Strings.pl.resx">
       <DependentUpon>Strings.resx</DependentUpon>
     </EmbeddedResource>
+    <EmbeddedResource Update="Translations\Strings.pt.resx">
+      <DependentUpon>Strings.resx</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Update="Translations\Strings.pt-BR.resx">
       <DependentUpon>Strings.resx</DependentUpon>
     </EmbeddedResource>
@@ -245,6 +257,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Update="libs\$(Platform)\FakerInputWrapper\FakerInputDll.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>FakerInputDll.dll</Link>
+    </None>
     <None Update="NLog.config">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
@@ -254,7 +270,11 @@
     </None>
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Remove="extras\" />
+  </ItemGroup>
+
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-    <Exec Command="rem Copy compiled l18n assemblies to alt folder&#xD;&#xA;GOTO END&#xD;&#xA;if not exist $(TargetDir)Lang mkdir $(TargetDir)Lang&#xD;&#xA;set langs=cs de es fr he it ja nl pt-BR ru zh-CN zh-TW uk-UA hu-HU pl ar&#xD;&#xA;&#xD;&#xA;for %25%25l in (%25langs%25) do (&#xD;&#xA;  xcopy $(TargetDir)%25%25l $(TargetDir)Lang\%25%25l\ /s /y&#xD;&#xA;)&#xD;&#xA;&#xD;&#xA;echo $(Version)&gt; $(ProjectDir)\newest.txt&#xD;&#xA;&#xD;&#xA;:END&#xD;&#xA;" />
+    <Exec Command="rem Copy compiled l18n assemblies to alt folder&#xD;&#xA;GOTO END&#xD;&#xA;if not exist $(TargetDir)Lang mkdir $(TargetDir)Lang&#xD;&#xA;set langs=cs de es fr he it ja nl pt pt-BR ru zh-CN zh-TW uk-UA hu-HU pl ar&#xD;&#xA;&#xD;&#xA;for %25%25l in (%25langs%25) do (&#xD;&#xA;  xcopy $(TargetDir)%25%25l $(TargetDir)Lang\%25%25l\ /s /y&#xD;&#xA;)&#xD;&#xA;&#xD;&#xA;echo $(Version)&gt; $(ProjectDir)\newest.txt&#xD;&#xA;&#xD;&#xA;:END&#xD;&#xA;" />
   </Target>
 </Project>
